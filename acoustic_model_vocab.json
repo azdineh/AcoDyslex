@@ -1,0 +1,18 @@
+{
+  "model_id": "MostafaMaroof/wav2vec2-arabic-phoneme-asr",
+  "revision": "0a32c641aaaeec6957e41a794add52e024e46b50",
+  "source": "https://huggingface.co/MostafaMaroof/wav2vec2-arabic-phoneme-asr/resolve/0a32c641aaaeec6957e41a794add52e024e46b50/vocab.json",
+  "sha256": "253e79d757c9946dab216846aa0ff383a0b36e200a728f9be2cd2c135312a5ac",
+  "tokens": {
+    "$": 0, "$$": 1, "*": 2, "**": 3, "<": 4, "<<": 5, "A": 6, "AA": 7, "AH": 8,
+    "D": 9, "DD": 10, "E": 11, "EE": 12, "H": 13, "HH": 14, "I": 15, "II": 16,
+    "S": 17, "SS": 18, "T": 19, "TT": 20, "U": 21, "UU": 22, "Z": 23, "ZZ": 24,
+    "^": 25, "^^": 26, "a": 27, "aa": 28, "b": 29, "bb": 30, "d": 31, "dd": 32,
+    "f": 33, "ff": 34, "g": 35, "gg": 36, "h": 37, "hh": 38, "i": 39, "ii": 40,
+    "j": 41, "jj": 42, "k": 43, "kk": 44, "l": 45, "ll": 46, "m": 47, "mm": 48,
+    "n": 49, "nn": 50, "p": 51, "pp": 52, "q": 53, "qq": 54, "r": 55, "rr": 56,
+    "s": 57, "sh": 58, "sil": 59, "ss": 60, "t": 61, "th": 62, "tt": 63, "u": 64,
+    "uu": 65, "v": 66, "w": 67, "ww": 68, "x": 69, "xx": 70, "y": 71, "yy": 72,
+    "z": 73, "zz": 74, "|": 75, "[UNK]": 76, "[PAD]": 77
+  }
+}

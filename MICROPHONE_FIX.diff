@@ -1,0 +1,374 @@
+--- a/static/app.js
++++ b/static/app.js
+@@ -3,6 +3,7 @@
+ let recorder = null, stream = null, recordingChunks = [], clock = null, begun = 0;
+ let wavBlob = null, previewUrl = null, currentId = null, lastResult = null, entries = [];
+ let analysisRequest = 0;
++let captureBusy = false, captureFailure = null, microphoneMonitor = null;
+ 
+ function status(message, type='info') {
+   const el = $('alert'); el.textContent = message; el.className = `alert show ${type}`;
+@@ -55,45 +56,156 @@
+ }
+ 
+ 
++function measureSignal(samples) {
++  let squares=0, peak=0;
++  for(const sample of samples){squares+=sample*sample;peak=Math.max(peak,Math.abs(sample));}
++  const rms=Math.sqrt(squares/Math.max(samples.length,1));
++  return {rms,peak,db:rms>0?20*Math.log10(rms):-Infinity};
++}
++async function refreshMicrophones(activeId) {
++  if(!navigator.mediaDevices?.enumerateDevices)return;
++  try{
++    const devices=await navigator.mediaDevices.enumerateDevices();
++    const select=$('microphone-select'), selected=activeId||select.value;
++    select.replaceChildren(new Option('Microphone par défaut',''));
++    for(const device of devices.filter(device=>device.kind==='audioinput' && device.deviceId)){
++      select.append(new Option(device.label||`Microphone ${select.options.length}`,device.deviceId));
++    }
++    if(selected && ![...select.options].some(option=>option.value===selected)){
++      select.append(new Option('Microphone indisponible — choisissez une autre entrée',selected));
++    }
++    select.value=selected;
++  }catch{
++    // Enumeration can be restricted before permission; default capture remains available.
++  }
++}
++function setCaptureBusy(busy) {
++  captureBusy=busy;
++  $('start-btn').disabled=busy;
++  $('microphone-select').disabled=busy;
++  $('file-input').disabled=busy;
++  $('save-btn').disabled=busy||!wavBlob;
++  $('download-btn').disabled=busy||!wavBlob;
++  $('replay-btn').disabled=busy||!$('preview').getAttribute('src');
++}
++async function stopMicrophoneMonitor() {
++  const monitor=microphoneMonitor;
++  microphoneMonitor=null;
++  if(monitor){
++    cancelAnimationFrame(monitor.frame);
++    monitor.source.disconnect();
++    await monitor.context.close().catch(()=>{});
++  }
++  $('microphone-meter').value=0;
++}
++async function startMicrophoneMonitor(inputStream) {
++  const context=new (window.AudioContext||window.webkitAudioContext)();
++  const source=context.createMediaStreamSource(inputStream), analyser=context.createAnalyser();
++  analyser.fftSize=2048;
++  source.connect(analyser); // Never connect microphone monitoring to the speakers.
++  const samples=new Float32Array(analyser.fftSize);
++  const monitor={context,source,frame:null};
++  microphoneMonitor=monitor;
++  await context.resume();
++  const track=inputStream.getAudioTracks()[0];
++  const update=()=>{
++    if(microphoneMonitor!==monitor)return;
++    analyser.getFloatTimeDomainData(samples);
++    const signal=measureSignal(samples);
++    $('microphone-meter').value=Math.max(0,Math.min(100,(signal.db+60)/60*100));
++    const label=track.label||'Microphone sélectionné';
++    const message=track.muted ? `${label} : le microphone ne transmet pas de son.`
++      : signal.db < -60 ? `${label} : aucun signal détecté pour le moment. Parlez ou essayez un autre microphone.`
++      : signal.db < -45 ? `${label} : signal très faible. Rapprochez-vous du microphone.`
++      : `${label} : signal reçu.`;
++    if($('microphone-status').textContent!==message)$('microphone-status').textContent=message;
++    monitor.frame=requestAnimationFrame(update);
++  };
++  update();
++}
+ async function encodeRecording(blob) {
+   const ctx = new (window.AudioContext||window.webkitAudioContext)();
+   try {
+     const decoded=await ctx.decodeAudioData(await blob.arrayBuffer());
+-    return encodeWav(downsample(decoded));
++    const samples=downsample(decoded);
++    return {wav:encodeWav(samples),signal:measureSignal(samples)};
+   } finally { await ctx.close(); }
+ }
+-function recordStopped() {
++async function recordStopped() {
+   clearInterval(clock); clock=null;
+-  $('start-btn').disabled = false; $('stop-btn').disabled = true;
++  $('stop-btn').disabled = true;
+   $('timer').classList.remove('recording');
+   const tracks=stream?.getTracks() || []; tracks.forEach(t=>t.stop()); stream=null;
+   const raw=new Blob(recordingChunks,{type:recorder?.mimeType || 'audio/webm'});
+-  status('Conversion audio au format WAV 16 kHz…');
+-  encodeRecording(raw).then(wav=> {
++  try{
++    await stopMicrophoneMonitor();
++    if(captureFailure)throw new Error(captureFailure);
++    if(!raw.size)throw new Error('Aucune donnée reçue du microphone.');
++    status('Conversion audio au format WAV 16 kHz…');
++    const {wav,signal}=await encodeRecording(raw);
+     if(wav.size > 1000000) throw new Error('Audio trop volumineux');
+-    setAudio(wav,'lecture.wav');status('Enregistrement prêt : réécoutez puis sauvegardez.','ok');
+-  }).catch(err=>status(`Conversion impossible : ${err.message}`,'err'));
++    setAudio(wav,'lecture.wav');
++    if(signal.peak<=1/32768){
++      $('microphone-status').textContent='Enregistrement silencieux : aucun signal sonore exploitable.';
++      status('Enregistrement silencieux. Choisissez un autre microphone dans la liste, puis recommencez.','err');
++    }else if(signal.db < -45){
++      $('microphone-status').textContent='Le son enregistré est très faible.';
++      status('Son enregistré très faible. Rapprochez-vous du microphone ou choisissez une autre entrée, puis réécoutez.');
++    }else{
++      $('microphone-status').textContent='Signal sonore présent dans le WAV enregistré.';
++      status('Enregistrement prêt : réécoutez puis sauvegardez.','ok');
++    }
++  }catch(err){
++    $('microphone-status').textContent='Capture interrompue ou conversion impossible.';
++    status(`Enregistrement impossible : ${err.message}`,'err');
++  }finally{
++    recorder=null;recordingChunks=[];setCaptureBusy(false);
++  }
+ }
+ async function startRecord() {
++  if(captureBusy)return;
+   if(!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+     status('Microphone indisponible. Ouvrez cette page via http://localhost:8000 avec un navigateur récent.','err'); return;
+   }
++  setCaptureBusy(true);captureFailure=null;
++  $('preview').pause();
++  $('microphone-status').textContent='Ouverture du microphone…';
+   try {
+-    stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
++    const deviceId=$('microphone-select').value;
++    const audio={channelCount:1,echoCancellation:false,noiseSuppression:false,autoGainControl:false};
++    if(deviceId)audio.deviceId={exact:deviceId};
++    stream=await navigator.mediaDevices.getUserMedia({audio});
++    const track=stream.getAudioTracks()[0];
++    if(!track || track.readyState!=='live')throw new Error('Aucune piste microphone active.');
++    await refreshMicrophones(track.getSettings().deviceId);
++    try{await startMicrophoneMonitor(stream);}catch{
++      await stopMicrophoneMonitor();
++      $('microphone-status').textContent=`${track.label||'Microphone actif'} : indicateur de niveau indisponible.`;
++    }
+     const types=['audio/webm;codecs=opus','audio/mp4','audio/webm'];
+     const type=types.find(t=>MediaRecorder.isTypeSupported(t));
+     recorder=new MediaRecorder(stream,type?{mimeType:type}:undefined);
+     recordingChunks=[]; recorder.ondataavailable=(e)=>{if(e.data.size)recordingChunks.push(e.data)};
+     recorder.onstop=recordStopped;
++    recorder.onerror=(event)=>{captureFailure=event.error?.message||'Le microphone a interrompu la capture.';stopRecord();};
+     recorder.start(); begun=Date.now();
+     $('start-btn').disabled=true;$('stop-btn').disabled=false;$('timer').classList.add('recording');
+     $('timer').textContent='00:00';
+     clock=setInterval(()=>{const seconds=(Date.now()-begun)/1000; $('timer').textContent=elapsed(seconds); if(seconds>=19.5)stopRecord();},100);
+     status('Enregistrement en cours. Parlez clairement, à une distance confortable du microphone.');
+-  } catch(e){ status(`Impossible de démarrer le micro : ${e.message}`,'err'); stream?.getTracks().forEach(t=>t.stop()); }
++  } catch(e){
++    const message=e.name==='OverconstrainedError'||e.name==='NotFoundError'
++      ? 'Microphone sélectionné indisponible. Choisissez une autre entrée.'
++      : e.name==='NotAllowedError' ? 'Accès au microphone refusé. Autorisez le microphone pour cette page.' : e.message;
++    status(`Impossible de démarrer le micro : ${message}`,'err');
++    $('microphone-status').textContent=message;
++    stream?.getTracks().forEach(t=>t.stop());stream=null;recorder=null;
++    await stopMicrophoneMonitor();setCaptureBusy(false);
++  }
+ }
+ function stopRecord() { if(recorder?.state==='recording') recorder.stop(); }
+ async function replayAudio(){
++  if(captureBusy)return;
+   const player=$('preview');
+   if(!player.getAttribute('src'))return;
+   // Explicit listening action: restore a muted/zero-volume player without altering the WAV.
+@@ -236,6 +348,8 @@
+   $('start-btn').addEventListener('click',startRecord);$('stop-btn').addEventListener('click',stopRecord);
+   $('save-btn').addEventListener('click',saveRecord);
+   $('replay-btn').addEventListener('click',replayAudio);
++  refreshMicrophones();
++  navigator.mediaDevices?.addEventListener('devicechange',()=>refreshMicrophones());
+   $('download-btn').addEventListener('click',()=>wavBlob&&downloadBlob(wavBlob,'acodyslex_lecture.wav'));
+   $('analyze-btn').addEventListener('click',analyze);
+   $('file-input').addEventListener('change',e=>{
+--- a/static/index.html
++++ b/static/index.html
+@@ -60,6 +60,14 @@
+             <div><strong>Enregistrement vocal</strong>
+               <p>WAV mono · 16 kHz · PCM 16 bits · 20 s maximum</p>
+             </div>
++          </div>
++          <label class="field microphone-field" for="microphone-select"><span>Microphone utilisé</span>
++            <select id="microphone-select"><option value="">Microphone par défaut</option></select>
++          </label>
++          <div class="microphone-level">
++            <label for="microphone-meter">Niveau reçu</label>
++            <meter id="microphone-meter" min="0" max="100" value="0">0</meter>
++            <p id="microphone-status" role="status">Cliquez sur Commencer et parlez : le niveau doit bouger.</p>
+           </div>
+           <div class="record-actions"><button class="primary" id="start-btn" type="button">● Commencer</button><button
+               id="stop-btn" class="secondary" type="button" disabled>■ Arrêter</button><span id="timer"
+--- a/static/styles.css
++++ b/static/styles.css
+@@ -7,3 +7,8 @@
+ .classification-counts>div{padding:10px;border-radius:9px;background:#f5f8fd}
+ .classification-counts dt{font-size:11px;color:#52637c}
+ .classification-counts dd{margin:3px 0 0;font-size:20px;font-weight:750;color:#274b82}
++.microphone-field{margin-top:16px;margin-bottom:10px}
++.microphone-level{font-size:11px;color:#52637c}
++.microphone-level label{display:block;margin-bottom:4px;font-weight:650}
++.microphone-level meter{display:block;width:100%;height:18px}
++.microphone-level p{line-height:1.5;margin:5px 0;overflow-wrap:anywhere}
+--- a/tests/browser/audio.spec.cjs
++++ b/tests/browser/audio.spec.cjs
+@@ -3,7 +3,7 @@
+ const os = require('node:os');
+ const path = require('node:path');
+ 
+-function toneWav() {
++function toneWav(amplitude=8000) {
+   const rate = 48000, frames = rate * 8;
+   const data = Buffer.alloc(44 + frames * 2);
+   data.write('RIFF'); data.writeUInt32LE(data.length - 8, 4); data.write('WAVEfmt ', 8);
+@@ -11,21 +11,36 @@
+   data.writeUInt32LE(rate, 24); data.writeUInt32LE(rate * 2, 28);
+   data.writeUInt16LE(2, 32); data.writeUInt16LE(16, 34); data.write('data', 36);
+   data.writeUInt32LE(frames * 2, 40);
+-  for (let i = 0; i < frames; i++) data.writeInt16LE(Math.round(8000 * Math.sin(2 * Math.PI * 440 * i / rate)), 44 + i * 2);
++  for (let i = 0; i < frames; i++) data.writeInt16LE(Math.round(amplitude * Math.sin(2 * Math.PI * 440 * i / rate)), 44 + i * 2);
+   return data;
+ }
+ 
+ // Capture a known audible signal via Chromium's virtual microphone, never the real mic.
+-test('microphone capture preserves an audible signal through conversion, playback and archive', async ({playwright}) => {
++for (const scenario of [
++  {name: 'audible microphone survives conversion, playback and archive', amplitude: 8000},
++  {name: 'silent microphone is reported instead of a successful recording', amplitude: 0, warning: 'Enregistrement silencieux'},
++  {name: 'very quiet microphone is reported without amplifying the WAV', amplitude: 10, warning: 'Son enregistré très faible'},
++].filter(scenario=>process.env.ACODYSLEX_COMPARE_AUDIO_BACKUP!=='1'||!scenario.warning)) {
++test(scenario.name, async ({playwright}) => {
+   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'acodyslex-tone-'));
+   const tonePath = path.join(directory, 'tone.wav');
+-  await fs.writeFile(tonePath, toneWav());
++  await fs.writeFile(tonePath, toneWav(scenario.amplitude));
+   const browser = await playwright.chromium.launch({headless: true, args: [
+     '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream',
+     `--use-file-for-fake-audio-capture=${tonePath}`,
+   ]});
+   try {
+-    const page = await browser.newPage({baseURL: 'http://127.0.0.1:8765'});
++    const page = await browser.newPage({baseURL: 'http://127.0.0.1:8765', permissions: ['microphone']});
++    await page.addInitScript(() => {
++      const original=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
++      window.testCaptureCalls=[];
++      navigator.mediaDevices.getUserMedia=async constraints=>{
++        window.testCaptureCalls.push(constraints);
++        const stream=await original(constraints);
++        window.testInputStream=stream;
++        return stream;
++      };
++    });
+     const pageErrors = [];
+     page.on('pageerror', error => pageErrors.push(error.message));
+     let entries = [], savedWav = null;
+@@ -49,10 +64,29 @@
+       await page.route('**/static/app.js', route => route.fulfill({body: oldScript, contentType: 'text/javascript'}));
+     }
+     await page.goto('/');
++    let selectedDevice;
++    if(process.env.ACODYSLEX_COMPARE_AUDIO_BACKUP!=='1'){
++      await expect.poll(()=>page.locator('#microphone-select option').count()).toBeGreaterThan(1);
++      selectedDevice=await page.locator('#microphone-select option').last().getAttribute('value');
++      await page.locator('#microphone-select').selectOption(selectedDevice);
++    }
+     await page.locator('#start-btn').click();
+     await expect(page.locator('#timer')).toHaveText('00:02', {timeout: 8000});
++    if(process.env.ACODYSLEX_COMPARE_AUDIO_BACKUP!=='1'){
++      await expect(page.locator('#microphone-select')).toBeDisabled();
++      expect(await page.evaluate(()=>window.testCaptureCalls[0].audio.deviceId)).toEqual({exact:selectedDevice});
++      if(!scenario.warning){
++        await expect.poll(()=>page.locator('#microphone-meter').evaluate(meter=>meter.value)).toBeGreaterThan(40);
++        await expect(page.locator('#microphone-status')).toContainText('signal reçu');
++      }
++    }
+     await page.locator('#stop-btn').click();
+-    await expect(page.locator('#alert')).toContainText('Enregistrement prêt');
++    await expect(page.locator('#alert')).toContainText(scenario.warning||'Enregistrement prêt');
++    if(process.env.ACODYSLEX_COMPARE_AUDIO_BACKUP!=='1'){
++      await expect(page.locator('#microphone-select')).toBeEnabled();
++      expect(await page.evaluate(()=>window.testInputStream.getTracks().every(track=>track.readyState==='ended'))).toBe(true);
++      expect(await page.evaluate(()=>microphoneMonitor)).toBeNull();
++    }
+     const captured = await page.evaluate(async () => {
+       const bytes = await wavBlob.arrayBuffer(), view = new DataView(bytes);
+       let squares = 0, peak = 0;
+@@ -65,6 +99,13 @@
+         bytes: [...new Uint8Array(bytes)]};
+     });
+     expect(captured.rate).toBe(16000); expect(captured.channels).toBe(1); expect(captured.bits).toBe(16);
++    if(scenario.warning){
++      expect(captured.rms).toBeLessThan(0.001);
++      if(scenario.amplitude===0)expect(captured.peak).toBe(0);
++      await expect(page.locator('#download-btn')).toBeEnabled();
++      expect(pageErrors).toEqual([]);
++      return;
++    }
+     expect(captured.rms).toBeGreaterThan(0.10); expect(captured.peak).toBeGreaterThan(0.18);
+ 
+     // Measure the rendered audio stream, not just elapsed time or nonempty WAV bytes.
+@@ -117,3 +158,22 @@
+     await fs.rm(directory, {recursive: true, force: true});
+   }
+ });
++}
++
++test('microphone permission failure restores capture controls without losing the previous audio', async ({page}) => {
++  test.skip(process.env.ACODYSLEX_COMPARE_AUDIO_BACKUP==='1','The backup comparison covers the audible capture path only.');
++  await page.route('**/api/config', route=>route.fulfill({json:{whisper_enabled:false,modal_ready:false}}));
++  await page.route('**/api/recordings', route=>route.fulfill({json:[]}));
++  await page.addInitScript(()=>{
++    navigator.mediaDevices.getUserMedia=()=>Promise.reject(new DOMException('Denied','NotAllowedError'));
++  });
++  await page.goto('/');
++  await page.locator('#file-input').setInputFiles({name:'tone.wav',mimeType:'audio/wav',buffer:toneWav()});
++  const previous=await page.locator('#preview').getAttribute('src');
++  await page.locator('#start-btn').click();
++  await expect(page.locator('#alert')).toContainText('Accès au microphone refusé');
++  await expect(page.locator('#start-btn')).toBeEnabled();
++  await expect(page.locator('#microphone-select')).toBeEnabled();
++  await expect(page.locator('#preview')).toHaveAttribute('src',previous);
++  await expect(page.locator('#save-btn')).toBeEnabled();
++});
+--- /dev/null
++++ b/MICROPHONE_DIAGNOSTIC.md
+@@ -0,0 +1,38 @@
++# Diagnostic de la capture microphone — 5 novembre 2026
++
++La précision de l'utilisateur (« seuls les nouveaux enregistrements sont silencieux ») oriente le diagnostic vers la capture, plutôt que vers un problème général de sortie audio. Aucun WAV des derniers essais n'est présent dans `recordings/` au moment de la vérification : les fichiers locaux les plus récents datent du 4 novembre. La cause du silence réel n'est donc pas établie à partir de ces fichiers.
++
++## Changements
++
++- `static/index.html` : liste **Microphone utilisé**, indicateur **Niveau reçu** et message de signal.
++- `static/app.js` : énumération des entrées disponibles et demande explicite du périphérique sélectionné ; affichage de son nom et du niveau pendant la capture ; mesure du signal après conversion WAV ; avertissements pour silence ou niveau très faible.
++- La liste de microphones et les commandes de capture sont verrouillées pendant l'ouverture, l'enregistrement et la conversion. Les pistes et le contexte de mesure sont libérés à l'arrêt ou après un échec. Un refus d'accès conserve l'audio précédent.
++- Le microphone de mesure n'est pas relié aux haut-parleurs. Aucun gain automatique supplémentaire, aucune amplification du WAV et aucun changement des contraintes mono/16 kHz/PCM 16 bits.
++- `static/styles.css` : présentation du sélecteur et du niveau sur ordinateur et mobile.
++- `tests/browser/audio.spec.cjs` : tests avec microphone virtuel et trois signaux (audible, silence numérique, très faible), sélection du périphérique, mesure du signal de lecture et nettoyage des ressources. Un autre test couvre le refus de permission.
++
++Le niveau est un indicateur de signal, pas un détecteur de voix. Le bruit ambiant peut également faire bouger la barre. Les seuils de message sont des indications techniques ; ils ne constituent pas une évaluation de qualité clinique ou pédagogique. Un fichier silencieux reste téléchargeable pour permettre le diagnostic.
++
++## Vérifications effectuées
++
++```powershell
++node --check static/app.js
++npm.cmd test -- tests/browser/audio.spec.cjs
++npm.cmd test
++```
++
++Résultats : **4 tests audio ciblés réussis**, puis **39 tests navigateur réussis** dans la suite complète. La capture audible produit un RMS de 0,172 ; un signal non nul est mesuré à la sortie du lecteur avant et après sauvegarde. La sauvegarde simulée conserve exactement les octets du WAV. Les cas silencieux et très faible affichent leurs avertissements attendus. Aucun microphone physique ni enregistrement personnel n'a été utilisé dans ces tests, et aucun appel Modal n'a été effectué.
++
++La vue mobile a été inspectée sur la capture `test-results/classification-mobile.png`. Les fichiers `app.js` et `index.html` servis par `http://127.0.0.1:8000` correspondent aux fichiers modifiés.
++
++## Essai à effectuer avec le microphone réel
++
++1. Conserver d'abord tout audio en mémoire à garder, puis recharger avec **Ctrl+F5**.
++2. Choisir le microphone souhaité dans **Microphone utilisé**. Si les noms ne sont pas encore accessibles, commencer un premier essai, autoriser le microphone dans le navigateur, puis arrêter pour choisir l'entrée.
++3. Cliquer sur **Commencer** et parler : la barre **Niveau reçu** doit réagir.
++4. Si elle reste vide, essayer une autre entrée. Si elle réagit mais que le WAV reste silencieux, le diagnostic doit continuer sur cette nouvelle capture ; ne pas attribuer automatiquement le problème au périphérique de sortie.
++5. Arrêter puis cliquer sur **Réécouter**.
++
++La résolution dans la session réelle reste à confirmer par cet essai. Le matériel, le pilote et la permission du navigateur n'ont pas été modifiés.
++
++Sauvegarde avant modification : `.codex-backups/20261105T200151Z-microphone/`. Diff ciblé : `MICROPHONE_FIX.diff`.

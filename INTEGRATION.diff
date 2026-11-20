@@ -1,0 +1,1194 @@
+--- a/.gitignore
++++ b/.gitignore
+@@ -3,3 +3,7 @@
+ .env
+ recordings/*.wav
+ recordings/*.json
++.codex-backups/
++node_modules/
++test-results/
++playwright-report/
+--- a/README.md
++++ b/README.md
+@@ -10,6 +10,7 @@
+ - Liste des audios sauvegardés, sélection, écoute, suppression.
+ - Analyse via le backend FastAPI local, qui appelle Modal avec `ACODYSLEX_API_KEY` **sans transmettre la clé au navigateur**.
+ - Visualisation des phonèmes, descripteurs acoustiques, erreurs candidates, export JSON.
++- Classification phonémique : omissions, inversions, insertions et substitutions candidates, provenance de la référence et détails des opérations. Les références G2P restent provisoires ; les résultats ambigus ou indisponibles sont indiqués explicitement.
+ - **Whisper optionnel** pour la transcription de mots, *sans* jamais remplacer les erreurs phonémiques candidates ni constituer un diagnostic.
+ 
+ ## Démarrage Windows / PowerShell
+@@ -22,7 +23,6 @@
+ python -m pip install -r requirements.txt
+ 
+ # Mettez la même clé que celle créée dans le secret Modal acodyslex-api
+-$env:ACODYSLEX_API_KEY = "VOTRE_CLE_API_MODAL"
+ $env:ACODYSLEX_API_KEY = "VOTRE_CLE_API_MODAL"
+ 
+ # Facultatif : l'URL par défaut correspond au déploiement connu
+@@ -41,7 +41,7 @@
+ 2. Enregistrez au maximum 20 secondes, puis cliquez sur **Arrêter**.
+ 3. Réécoutez l'audio et cochez l'autorisation de sauvegarde, puis **Sauvegarder la lecture**.
+ 4. Sélectionnez cette lecture dans la liste, cochez séparément l'autorisation d'envoi au service Modal et cliquez sur **Analyser l'audio**.
+-5. Vérifiez `predicted_phonemes`, puis comparez avec `expected_phonemes` uniquement si une annotation a été préparée dans la **convention du modèle**.
++5. Vérifiez les phonèmes reconnus et la provenance de la référence. Pour essayer le G2P conservateur, utilisez un mot vocalisé pris en charge, par exemple `كَتَبَ`. Une conversion réussie ne constitue pas une validation humaine.
+ 6. Vous pouvez télécharger le WAV, exporter le JSON et supprimer l'audio local.
+ 
+ ## Activer Whisper si nécessaire
+@@ -81,8 +81,32 @@
+ └── static/
+     ├── index.html          # Interface
+     ├── styles.css
+-    └── app.js              # Microphone, WAV, opérations UI
++    ├── app.js              # Microphone, WAV, opérations UI
++    └── phoneme_classification_ui.js # Affichage prudent de la classification
+ ```
++
++## Vérifications locales de l'intégration
++
++Le service doit retourner `phoneme_classification` directement dans le JSON de `/v1/reading/analyze`. Le backend local transmet cet objet sans recalcul, ajoute la provenance et renseigne `classification_available`. Si Modal omet la classification, l'interface affiche « Classification indisponible », sans inventer quatre zéros. Aucun déploiement Modal n'est effectué par ces tests.
++
++Depuis la racine du projet, une commande par ligne :
++
++```powershell
++.\.venv\Scripts\python.exe -m py_compile app.py arabic_g2p.py
++.\.venv\Scripts\python.exe -m unittest discover -s tests -v
++.\.venv\Scripts\python.exe -m unittest -v test_arabic_g2p.py
++node --check static/app.js
++node --check static/phoneme_classification_ui.js
++npm.cmd ci
++npx.cmd playwright install chromium
++npm.cmd test
++```
++
++Les dépendances Node servent uniquement aux tests navigateur. L'application reste en JavaScript natif, sans compilation. `unittest` est fourni avec Python ; `pytest` n'est pas requis.
++
++Les tests Python utilisent des WAV synthétiques, un stockage temporaire et des réponses Modal simulées. Les tests Chromium couvrent l'interface et un parcours complet navigateur → FastAPI local → transport Modal simulé → affichage, puis lecture du WAV et suppression. Leur serveur isolé écoute sur `127.0.0.1:8765`, utilise une fausse clé et ne contacte pas Modal. Les captures de test sont dans `test-results/`.
++
++Cela ne valide ni l'inférence GPU réelle, ni la précision sur la parole d'enfants, ni le microphone physique. Le service Modal et ses tests de déploiement ne sont pas présents dans ce dossier.
+ 
+ ## Suivant (v0.4)
+ 
+--- a/app.py
++++ b/app.py
+@@ -37,7 +37,7 @@
+     "https://azzeddine-hlali--acodyslex-acoustic-create-api.us-east.modal.run"
+ )
+ 
+-app = FastAPI(title="AcoDyslex Frontend Prototype", version="0.3.0")
++app = FastAPI(title="AcoDyslex Frontend Prototype", version="0.3.1")
+ app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
+ 
+ 
+@@ -168,6 +168,7 @@
+         "reference_source": reference_source,
+         "reference_warning": reference_warning,
+     }
++    meta.update(reference_metadata(meta))
+     metadata_path, audio_path = get_paths(record_id)
+     audio_path.write_bytes(data)
+     metadata_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+@@ -202,17 +203,29 @@
+     return " ".join(seg.text.strip() for seg in segments).strip()
+ 
+ 
++def reference_metadata(record: dict) -> dict:
++    """Saved references are provisional; manual input is not human verification."""
++    source = record.get("reference_source") or (
++        "manual" if record.get("expected_phonemes") else "missing"
++    )
++    if not record.get("expected_phonemes"):
++        validation_status = "missing"
++    elif source.startswith("g2p_"):
++        validation_status = "g2p_provisional"
++    else:
++        validation_status = "provided_unverified"
++    return {
++        "reference_source": source,
++        "reference_warning": record.get("reference_warning"),
++        "reference_validation_status": validation_status,
++    }
++
++
+ @app.post("/api/recordings/{record_id}/analyze")
+ async def analyze(record_id: str, transfer_consent: bool = Form(False), use_whisper: bool = Form(False)):
+     if not transfer_consent:
+         raise HTTPException(403, "Autorisation explicite d'envoi de l'audio requise")
+     record = read_metadata(record_id)
+-
+-    print("=== ACODYSLEX DEBUG ===")
+-    print("target_text:", repr(record.get("target_text")))
+-    print("expected_phonemes:", repr(record.get("expected_phonemes")))
+-    print("type:", type(record.get("expected_phonemes")).__name__)
+-    print("=======================")
+ 
+     _, audio_path = get_paths(record_id)
+     api_key = os.getenv("ACODYSLEX_API_KEY", "").strip()
+@@ -239,11 +252,21 @@
+     except httpx.RequestError as exc:
+         raise HTTPException(502, f"Modal inaccessible : {type(exc).__name__}") from exc
+     if response.status_code != 200:
+-        raise HTTPException(502, f"Modal a répondu avec HTTP {response.status_code}: {response.text[:250]}")
++        raise HTTPException(502, f"Modal a répondu avec HTTP {response.status_code}")
+     try:
+         result = response.json()
+     except ValueError as exc:
+         raise HTTPException(502, "Modal n'a pas retourné de JSON valide") from exc
++
++    if not isinstance(result, dict) or result.get("status") != "ok":
++        raise HTTPException(502, "Modal a retourné une réponse d'analyse incohérente")
++
++    # Pass the classification through unchanged, without recomputing its counts.
++    result.update(reference_metadata(record))
++    classification = result.get("phoneme_classification")
++    result["classification_available"] = isinstance(classification, dict) and bool(classification)
++    if not result["classification_available"]:
++        result["classification_note"] = "Le service Modal n'a pas fourni de classification phonémique exploitable."
+ 
+     result["recording_id"] = record_id
+     result["learner_code"] = record["learner_code"]
+--- a/static/app.js
++++ b/static/app.js
+@@ -2,6 +2,7 @@
+ const $ = (id) => document.getElementById(id);
+ let recorder = null, stream = null, recordingChunks = [], clock = null, begun = 0;
+ let wavBlob = null, previewUrl = null, currentId = null, lastResult = null, entries = [];
++let analysisRequest = 0;
+ 
+ function status(message, type='info') {
+   const el = $('alert'); el.textContent = message; el.className = `alert show ${type}`;
+@@ -53,59 +54,6 @@
+ }
+ 
+ 
+-function displayPhonemeClassification(result) {
+-  const box = document.getElementById("phonemeResult");
+-  if (!box) return;
+-
+-  const classification = result.phoneme_classification;
+-
+-  if (!classification) {
+-    box.textContent = "Classification indisponible.";
+-    return;
+-  }
+-
+-  if (classification.status !== "candidate_only") {
+-    box.textContent =
+-      "Analyse phonémique non effectuée : " +
+-      (classification.reason || classification.status);
+-    return;
+-  }
+-
+-  const analysis = classification.analysis;
+-  const counts = analysis?.error_counts;
+-
+-  if (!counts) {
+-    box.textContent = "Résultat de classification incomplet.";
+-    return;
+-  }
+-
+-  box.replaceChildren();
+-
+-  const heading = document.createElement("h3");
+-  heading.textContent = "Erreurs phonémiques candidates";
+-  box.appendChild(heading);
+-
+-  const labels = {
+-    omission: "Omissions",
+-    inversion: "Inversions",
+-    insertion: "Insertions",
+-    substitution: "Substitutions"
+-  };
+-
+-  for (const [type, label] of Object.entries(labels)) {
+-    const line = document.createElement("p");
+-    line.textContent = `${label} : ${counts[type] ?? 0}`;
+-    box.appendChild(line);
+-  }
+-
+-  const note = document.createElement("p");
+-  note.textContent = analysis.type_ambiguous
+-    ? "Classification ambiguë : vérification humaine nécessaire."
+-    : "Résultats provisoires issus du modèle acoustique. À vérifier par un enseignant.";
+-  box.appendChild(note);
+-}
+-
+-
+ async function encodeRecording(blob) {
+   const ctx = new (window.AudioContext||window.webkitAudioContext)();
+   try {
+@@ -146,8 +94,9 @@
+ function stopRecord() { if(recorder?.state==='recording') recorder.stop(); }
+ function downloadBlob(blob,name){const link=document.createElement('a'),url=URL.createObjectURL(blob);link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);}
+ async function jsonFetch(url,options={}){
+-  const res=await fetch(url,options); let data; try{ data=await res.json(); }catch{throw new Error(`HTTP ${res.status}`);}
+-  if(!res.ok) throw new Error(typeof data.detail==='string'?data.detail:`HTTP ${res.status}`);
++  const res=await fetch(url,options); let data;
++  try{ data=await res.json(); }catch{throw new Error(res.ok?'Réponse JSON invalide du serveur.':`HTTP ${res.status}`);}
++  if(!res.ok) throw new Error(typeof data?.detail==='string'?`HTTP ${res.status} : ${data.detail}`:`HTTP ${res.status}`);
+   return data;
+ }
+ async function saveRecord(){
+@@ -166,13 +115,19 @@
+     currentId=entry.id;await loadEntries();selectRecord(entry.id);
+     status('Enregistrement sauvegardé localement avec succès.','ok');
+   }catch(e){status(`Échec de sauvegarde : ${e.message}`,'err');}
+-  finally{$('save-btn').disabled=false;}
++  finally{$('save-btn').disabled=!wavBlob;}
+ }
+ function make(tag,text,className){const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(className)node.className=className;return node;}
++function clearResult(){
++  $('results').hidden=true;$('empty-state').hidden=false;lastResult=null;
++  $('phonemeResult').replaceChildren();$('json-output').textContent='';
++}
+ function selectRecord(id){
++  // Ignore an in-flight response when the operator changes the selected session.
++  analysisRequest++;clearResult();
+   currentId=id;const entry=entries.find(x=>x.id===id);
+   $('selected-name').textContent=entry?`${entry.learner_code} · ${entry.target_text} · ${entry.duration_seconds}s`:'Aucune séance sauvegardée';
+-  $('analyze-btn').disabled=!entry;$('results').hidden=true;$('empty-state').hidden=false;lastResult=null;
++  $('analyze-btn').disabled=!entry;$('analyze-btn').textContent="Analyser l'audio";
+   // An archived selection is not a newly recorded WAV: prevent accidental duplicate saves.
+   wavBlob=null;$('save-btn').disabled=true;$('download-btn').disabled=true;
+   if(previewUrl)URL.revokeObjectURL(previewUrl);previewUrl=null;
+@@ -212,8 +167,9 @@
+   const phonemes=$('predicted');phonemes.replaceChildren();
+   for(const p of(data.predicted_phonemes||[]))phonemes.append(make('span',String(p)));
+   const errs=$('errors');errs.replaceChildren();
+-  if(!data.expected_phonemes)errs.textContent='Aucune annotation phonémique fournie : comparaison désactivée.';
+-  else if(!data.candidate_errors?.length)errs.textContent='Aucune différence candidate signalée ; cela ne garantit pas une lecture correcte.';
++  if(!data.expected_phonemes?.length)errs.textContent='Référence phonémique absente : comparaison désactivée.';
++  else if(!Array.isArray(data.candidate_errors))errs.textContent='Résultats historiques indisponibles. Consultez la classification phonémique ci-dessus.';
++  else if(!data.candidate_errors.length)errs.textContent='Aucune différence candidate signalée dans la liste historique ; cela ne garantit pas une lecture correcte.';
+   else{const pre=make('pre',JSON.stringify(data.candidate_errors,null,2));errs.append(pre)}
+   const metrics=$('acoustics');metrics.replaceChildren();
+   const names={duration_seconds:'Durée',rms_amplitude:'Amplitude RMS',peak_amplitude:'Amplitude maximale',low_energy_frame_ratio:'Trames peu énergétiques',quiet_recording_warning:'Audio faible ?'};
+@@ -226,15 +182,36 @@
+   $('whisper-text').textContent=data.whisper_transcript||'';
+   $('json-output').textContent=JSON.stringify(data,null,2);
+ }
++function validateAnalysisResult(data){
++  const isObject=value=>value!==null && typeof value==='object' && !Array.isArray(value);
++  const isTokens=value=>Array.isArray(value) && value.every(token=>typeof token==='string');
++  if(!isObject(data) || data.status!=='ok' ||
++     (data.predicted_phonemes!=null && !isTokens(data.predicted_phonemes)) ||
++     (data.expected_phonemes!=null && typeof data.expected_phonemes!=='string' && !isTokens(data.expected_phonemes)) ||
++     (data.candidate_errors!=null && !Array.isArray(data.candidate_errors)) ||
++     (data.acoustics!=null && !isObject(data.acoustics)) ||
++     (data.whisper_transcript!=null && typeof data.whisper_transcript!=='string')){
++    throw new Error('Réponse d’analyse incohérente ou incomplète.');
++  }
++}
+ async function analyze(){
+   if(!currentId)return;
+   if(!$('transfer-consent').checked){status('Confirmez l’autorisation de traitement distant avant l’analyse.','err');return;}
+   const fields=new FormData();fields.append('transfer_consent','true');fields.append('use_whisper',$('whisper').checked?'true':'false');
++  const recordId=currentId, request=++analysisRequest;
++  clearResult();
+   $('analyze-btn').disabled=true;$('analyze-btn').textContent='Analyse en cours…';
+   status('Appel de Wav2Vec2 sur Modal. Le premier lancement GPU peut être plus lent.');
+-  try {const result=await jsonFetch(`/api/recordings/${currentId}/analyze`,{method:'POST',body:fields});renderResult(result);status('Analyse acoustique reçue. Les différences éventuelles doivent être vérifiées.','ok');}
+-  catch(e){status(`Analyse impossible : ${e.message}`,'err');}
+-  finally{$('analyze-btn').disabled=false;$('analyze-btn').textContent="Analyser l'audio";}
++  try {
++    const result=await jsonFetch(`/api/recordings/${recordId}/analyze`,{method:'POST',body:fields});
++    if(request!==analysisRequest || recordId!==currentId)return;
++    validateAnalysisResult(result);
++    renderResult(result);
++    displayPhonemeClassification(result);
++    status('Analyse acoustique reçue. Les différences éventuelles doivent être vérifiées.','ok');
++  }
++  catch(e){if(request===analysisRequest){clearResult();status(`Analyse impossible : ${e.message}`,'err');}}
++  finally{if(request===analysisRequest){$('analyze-btn').disabled=!currentId;$('analyze-btn').textContent="Analyser l'audio";}}
+ }
+ async function initialize(){
+   $('start-btn').addEventListener('click',startRecord);$('stop-btn').addEventListener('click',stopRecord);
+--- a/static/index.html
++++ b/static/index.html
+@@ -7,6 +7,7 @@
+   <meta name="theme-color" content="#e9f0ff" />
+   <title>AcoDyslex · Atelier de lecture</title>
+   <link rel="stylesheet" href="/static/styles.css" />
++  <script src="/static/phoneme_classification_ui.js" defer></script>
+   <script src="/static/app.js" defer></script>
+ </head>
+ 
+@@ -51,8 +52,8 @@
+         <label class="field"><span>Texte à lire en arabe</span><input id="target" dir="rtl" lang="ar"
+             class="arabic-input" value="سمكة" maxlength="300" /></label>
+         <label class="field"><span>Phonèmes attendus (facultatif, à annoter)</span><input id="phonemes" dir="ltr"
+-            placeholder="Ex. s a m a k a — à vérifier" maxlength="1000" /><small>Sans phonèmes annotés, l'API ne peut
+-            pas calculer les erreurs candidates.</small></label>
++            placeholder="Ex. s a m a k a — à vérifier" maxlength="1000" /><small>Sans saisie, une conversion G2P provisoire
++            est tentée pour les mots vocalisés pris en charge. Toute référence reste à vérifier.</small></label>
+         <div class="capture-box">
+           <div class="capture-head">
+             <div class="micro-illustration" aria-hidden="true">🎙</div>
+@@ -149,4 +150,4 @@
+   </div>
+ </body>
+ 
+-</html>+</html>
+--- a/static/styles.css
++++ b/static/styles.css
+@@ -1 +1,9 @@
+ :root{font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#1b2b44;background:#f4f7fd;font-synthesis:none}*{box-sizing:border-box}body{margin:0}.container{max-width:1260px;margin:auto;padding:22px 26px 35px}button,input,select{font:inherit}button{cursor:pointer;transition:.15s ease}button:disabled{opacity:.42;cursor:not-allowed}button:not(:disabled):hover{filter:brightness(.96);transform:translateY(-1px)}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #95bafa;outline-offset:2px}.topbar{display:flex;align-items:center;justify-content:space-between;padding:8px 0 22px}.brand{display:flex;align-items:center;gap:12px}.brand-icon{width:44px;height:44px;border-radius:15px;background:#175bd8;color:#fff;font-size:32px;text-align:center;line-height:40px}.brand strong{display:block;font-size:23px;letter-spacing:-.6px}.brand small{display:block;color:#66768e;font-size:12px;margin-top:2px}.mode-chip{padding:8px 12px;border-radius:99px;font-weight:700;font-size:12px;background:#e5edfc;color:#3563a1}.hero{display:flex;justify-content:space-between;align-items:center;padding:27px 33px;margin-bottom:22px;border-radius:24px;background:linear-gradient(110deg,#1144a3 0%,#185bd7 75%,#3c7de6 100%);color:#fff;gap:25px;box-shadow:0 10px 22px #1e62bb16}.eyebrow{font-size:12px;font-weight:750;text-transform:uppercase;letter-spacing:1.2px;color:#afcdfa;margin:0 0 9px}.hero h1{font-size:32px;line-height:1.1;margin:0 0 11px;letter-spacing:-1px}.hero p:not(.eyebrow){max-width:630px;font-size:14px;line-height:1.6;margin:0;color:#e1edff}.arabic-hero{font-size:32px;min-width:225px;text-align:center;font-weight:650;color:#e8f3ff}.arabic-hero span{font-size:18px;color:#ffc95d}.layout{display:grid;grid-template-columns:1.04fr .96fr;gap:20px}.panel{padding:24px 26px;border:1px solid #e2e9f4;border-radius:20px;background:white;box-shadow:0 4px 18px #2347750a}.panel-title{display:flex;align-items:center;gap:12px;margin-bottom:22px}.step{height:35px;width:35px;border-radius:12px;display:grid;place-items:center;font-size:13px;font-weight:800;background:#eaf1ff;color:#175bd8}.panel-title h2{font-size:19px;margin:0 0 3px;letter-spacing:-.3px}.panel-title p{font-size:12px;color:#8290a4;margin:0}.field{display:flex;flex-direction:column;margin-bottom:17px;gap:7px;flex:1;min-width:0}.field>span{font-size:12px;font-weight:750;color:#3a4d6b}.field>small{font-size:11px;line-height:1.4;color:#8390a3}.field-row{display:flex;gap:13px}.field input,.field select{height:43px;width:100%;border:1px solid #d8e1ef;border-radius:10px;padding:0 12px;background:#f9fbff;outline:0;color:#1a2d48}.field select{font-size:12px}.arabic-input{font-size:22px!important;font-family:Tahoma,"Segoe UI",sans-serif}.capture-box{padding:17px;background:#f6f9ff;border:1px dashed #cad8f0;border-radius:16px;margin:8px 0 15px}.capture-head{display:flex;align-items:center;gap:12px}.micro-illustration{font-size:22px;background:#e3eeff;width:47px;height:47px;border-radius:15px;display:grid;place-items:center}.capture-head strong{font-size:13px}.capture-head p{margin:5px 0;font-size:11px;color:#8190a6}.record-actions{display:flex;align-items:center;gap:8px;margin:17px 0}.primary,.secondary{padding:11px 15px;border-radius:11px;font-size:12px;font-weight:770;border:0}.primary{background:#175bd8;color:#fff}.secondary{background:#e8effa;color:#274b82}.timer{font-variant-numeric:tabular-nums;margin-left:auto;font-size:16px;font-weight:800;color:#2c4c84}.timer.recording{color:#b3344f}.import{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0;font-size:11px;color:#5f7190}.import input{font-size:10px;max-width:100%}audio{width:100%;height:35px;margin-top:8px}.minor-message{font-size:11px;color:#7787a0;margin-top:8px}.consent{display:flex;gap:10px;align-items:flex-start;margin:12px 0;font-size:12px;line-height:1.55;color:#52637c}.consent input{accent-color:#175bd8;margin-top:3px}.consent small{display:block;color:#8996a8}.actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:16px}.notice{padding:11px 12px;border-radius:10px;background:#fff8e8;color:#967044;line-height:1.5;font-size:11px;margin-top:17px}.selected-record{border:1px solid #e2eafb;padding:12px;border-radius:11px;margin-bottom:15px}.selected-record small{display:block;color:#8794a8;font-size:11px;margin-bottom:5px}.selected-record strong{font-size:13px}.whisper{padding:11px;background:#f8faff;border-radius:11px}.wide{width:100%;margin:5px 0}.results{margin-top:17px}.result-head{display:flex;gap:8px;align-items:center;margin-bottom:14px;font-size:14px}.result-head small{font-size:10px;color:#9ca8b9;margin-left:auto;max-width:220px;text-align:right}.status-dot{width:9px;height:9px;border-radius:50%;background:#23a776}.result-section{border-top:1px solid #e8edf5;padding:15px 0}.result-section h3{font-size:12px;color:#4b5f7d;margin:0 0 11px}.phoneme-list{display:flex;flex-wrap:wrap;gap:7px}.phoneme-list span{font-size:15px;color:#1455bf;background:#eaf2ff;padding:7px 10px;border-radius:9px;font-weight:750}.error-box{font-size:12px;color:#63758d;line-height:1.5}.error-box pre{overflow:auto;white-space:pre-wrap}.metrics{display:grid;grid-template-columns:1fr 1fr;gap:9px}.metric{border-radius:9px;background:#f5f8fd;padding:9px}.metric small{display:block;color:#8191a8;font-size:10px}.metric strong{font-size:13px}.arabic-text{font:20px Tahoma,"Segoe UI",sans-serif;line-height:1.8}.empty-result{text-align:center;color:#7588a5;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:80px 26px}.empty-result>span{font-size:53px;color:#a5c1e6}.empty-result strong{color:#4e6382;font-size:14px;margin:9px 0}.empty-result p{font-size:12px;line-height:1.6;max-width:270px}.archive{margin-top:20px}.archive-list{display:grid;gap:9px}.archive-entry{display:flex;gap:12px;align-items:center;padding:12px;background:#f8fbff;border:1px solid #e9eef6;border-radius:12px;flex-wrap:wrap}.archive-entry.active{border-color:#3976d4;background:#f0f6ff}.archive-icon{width:36px;height:36px;display:grid;place-items:center;border-radius:11px;background:#e5efff;color:#175bd8}.archive-meta{flex:1;min-width:150px}.archive-meta strong{font-size:12px;display:block}.archive-meta small{font-size:11px;color:#8293a9;display:block;margin-top:4px}.archive-buttons{display:flex;gap:7px;flex-wrap:wrap}.archive-buttons button{font-size:11px;padding:8px;border-radius:8px;border:0;color:#31568b;background:#e5efff}.archive-buttons .delete{background:#ffebed;color:#a64258}.alert{display:none;margin-bottom:16px;border-radius:12px;padding:12px 16px;font-size:13px}.alert.show{display:block}.alert.ok{background:#def7ec;color:#146b4c}.alert.err{background:#ffeced;color:#a32942}.alert.info{background:#e9f1ff;color:#315e9b}details{margin:12px 0;color:#526888;font-size:12px}pre{max-height:300px;overflow:auto;background:#f3f6fb;border-radius:10px;padding:12px;white-space:pre-wrap;word-break:break-word}footer{margin-top:25px;color:#8996ac;text-align:center;font-size:11px}@media(max-width:920px){.layout{grid-template-columns:1fr}.arabic-hero{display:none}.container{padding:12px}.hero{padding:22px}.hero h1{font-size:25px}.panel{padding:20px}.field-row{flex-direction:column;gap:0}}@media(max-width:490px){.topbar{align-items:flex-start;gap:10px}.mode-chip{font-size:10px}.brand strong{font-size:20px}.record-actions{flex-wrap:wrap}.timer{margin-left:0}.archive-buttons{width:100%}}
++[hidden]{display:none!important}
++#phonemeResult{font-size:12px;line-height:1.6;color:#52637c;overflow-wrap:anywhere}
++#phonemeResult .notice{margin-top:10px}
++.classification-reference{font-weight:650}
++.classification-counts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:12px 0}
++.classification-counts>div{padding:10px;border-radius:9px;background:#f5f8fd}
++.classification-counts dt{font-size:11px;color:#52637c}
++.classification-counts dd{margin:3px 0 0;font-size:20px;font-weight:750;color:#274b82}
+--- /dev/null
++++ b/static/phoneme_classification_ui.js
+@@ -0,0 +1,87 @@
++'use strict';
++
++// Use textContent exclusively: tokens and explanations come from a remote service.
++function displayPhonemeClassification(result) {
++  const box = document.getElementById('phonemeResult');
++  if (!box) return;
++  box.replaceChildren();
++  const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
++  const add = (tag, text, className) => {
++    const element = document.createElement(tag);
++    element.textContent = text;
++    if (className) element.className = className;
++    box.appendChild(element);
++    return element;
++  };
++  const labels = {omission: 'Omissions', inversion: 'Inversions', insertion: 'Insertions', substitution: 'Substitutions'};
++  const classification = isObject(result?.phoneme_classification) ? result.phoneme_classification : null;
++  const source = result?.reference_source;
++  const referenceStatus = result?.reference_validation_status || classification?.reference_status;
++  let reference = 'Provenance de la référence non précisée ; validation humaine à vérifier.';
++  if (referenceStatus === 'missing' || source === 'missing') {
++    reference = 'Référence phonémique absente : comparaison indisponible.';
++  } else if (referenceStatus === 'g2p_provisional' || (typeof source === 'string' && source.startsWith('g2p_'))) {
++    reference = 'Référence G2P provisoire : conversion automatique, non validée humainement.';
++  } else if (referenceStatus === 'provided_unverified' || source === 'manual') {
++    reference = 'Référence fournie manuellement, non validée humainement.';
++  } else if (referenceStatus === 'human_verified') {
++    reference = 'Référence déclarée vérifiée humainement par le service. Les écarts ASR restent des hypothèses.';
++  }
++  add('p', reference, 'classification-reference');
++  if (typeof result?.reference_warning === 'string' && result.reference_warning) add('p', result.reference_warning);
++  add('p', 'Hypothèse ASR — confirmation humaine nécessaire. Un écart entre la référence et la reconnaissance ne prouve pas une erreur de l’enfant.', 'notice');
++
++  if (!classification || result?.classification_available === false) {
++    add('p', 'Classification indisponible. Aucun compte d’erreurs ne peut être déduit.');
++    if (typeof result?.classification_note === 'string') add('p', result.classification_note);
++    return;
++  }
++  if (classification.status !== 'candidate_only') {
++    const reasons = {
++      skipped_missing_reference: 'référence phonémique absente',
++      skipped_missing_observation: 'phonèmes reconnus absents',
++      skipped_unsupported_tokens: 'phonèmes non pris en charge'
++    };
++    add('p', `Classification indisponible : ${reasons[classification.status] || 'statut non pris en charge'}.`);
++    if (typeof classification.reason === 'string') add('p', classification.reason);
++    return;
++  }
++  const analysis = classification.analysis;
++  const counts = analysis?.error_counts;
++  if (!isObject(analysis) || !isObject(counts) ||
++      !Object.keys(labels).every(type => Number.isSafeInteger(counts[type]) && counts[type] >= 0) ||
++      (analysis.type_ambiguous != null && typeof analysis.type_ambiguous !== 'boolean') ||
++      (analysis.errors != null && (!Array.isArray(analysis.errors) || !analysis.errors.every(isObject))) ||
++      referenceStatus === 'missing' || source === 'missing' || classification.confirmed_child_error === true) {
++    add('p', 'Classification indisponible : résultat incomplet ou incohérent. Les comptes doivent être vérifiés.');
++    return;
++  }
++  if (analysis.type_ambiguous === true) {
++    add('p', 'Classification ambiguë / à réviser : les types et comptes ci-dessous sont provisoires.', 'notice');
++  }
++  const summary = add('dl', '', 'classification-counts');
++  for (const [type, label] of Object.entries(labels)) {
++    const item = document.createElement('div');
++    const term = document.createElement('dt');
++    const count = document.createElement('dd');
++    term.textContent = label;
++    count.textContent = String(counts[type]);
++    item.append(term, count);
++    summary.appendChild(item);
++  }
++  add('p', 'Comptes d’écarts candidats, sans mesure de gravité pédagogique. Les voyelles finales et les écarts de longueur vocalique demandent une interprétation contextuelle.');
++  if (Array.isArray(analysis.errors) && analysis.errors.length) {
++    const details = add('details', '');
++    const title = document.createElement('summary');
++    title.textContent = 'Détail des écarts candidats (positions et phonèmes fournis par le service)';
++    const content = document.createElement('pre');
++    // Preserve the actual operation schema instead of guessing position field names.
++    content.textContent = JSON.stringify(analysis.errors, null, 2);
++    details.append(title, content);
++  } else if (Object.values(counts).some(count => count > 0)) {
++    add('p', 'Détail des opérations non fourni par le service.');
++  }
++  if (typeof analysis.standard_per === 'number' && Number.isFinite(analysis.standard_per) && analysis.standard_per >= 0) {
++    add('p', `PER référence–ASR : ${analysis.standard_per}. Écart entre séquences, non validé sur un audio annoté humainement.`);
++  }
++}
+--- /dev/null
++++ b/tests/test_analysis_integration.py
+@@ -0,0 +1,201 @@
++"""Local HTTP integration tests: synthetic WAVs, isolated storage, mocked Modal."""
++import copy
++import io
++import os
++import tempfile
++import unittest
++import wave
++from pathlib import Path
++from unittest.mock import patch
++
++import httpx
++from fastapi.testclient import TestClient
++import app as localapp
++
++
++def synthetic_wav():
++    output = io.BytesIO()
++    with wave.open(output, 'wb') as audio:
++        audio.setnchannels(1)
++        audio.setsampwidth(2)
++        audio.setframerate(16000)
++        audio.writeframes(b'\x00\x00' * 16000)
++    return output.getvalue()
++
++
++def candidate_response():
++    return {
++        'status': 'ok', 'model': 'simulated-model',
++        'expected_phonemes': ['k', 'a', 't', 'a', 'b', 'a'],
++        'predicted_phonemes': ['k', 'a', 't', 'a', 'b'],
++        'candidate_errors': [{'type': 'omission'}],
++        'acoustics': {'duration_seconds': 1},
++        'exercise_after_human_confirmation': {'description': 'Historical field preserved'},
++        'phoneme_classification': {
++            'status': 'candidate_only', 'reference_status': 'provided_unverified',
++            'confirmed_child_error': False,
++            'analysis': {
++                'error_counts': {'omission': 1, 'inversion': 0, 'insertion': 0, 'substitution': 0},
++                'errors': [{'type': 'omission', 'reference_tokens': ['a'], 'observed_tokens': []}],
++                'type_ambiguous': False,
++            },
++        },
++    }
++
++
++class AnalysisIntegrationTests(unittest.TestCase):
++    def setUp(self):
++        storage = tempfile.TemporaryDirectory()
++        self.addCleanup(storage.cleanup)
++        storage_patch = patch.object(localapp, 'STORAGE', Path(storage.name))
++        storage_patch.start()
++        self.addCleanup(storage_patch.stop)
++        environment = patch.dict(os.environ, {
++            'ACODYSLEX_API_KEY': 'synthetic-test-key',
++            'ACODYSLEX_MODAL_BASE_URL': 'https://modal.invalid',
++            'ACODYSLEX_ENABLE_WHISPER': '0',
++        })
++        environment.start()
++        self.addCleanup(environment.stop)
++        self.client = TestClient(localapp.app)
++        self.addCleanup(self.client.close)
++        self.requests = []
++
++    def save(self, target='كَتَبَ', expected='', verified=''):
++        response = self.client.post('/api/recordings', data={
++            'learner_code': 'synthetic-reader', 'target_text': target,
++            'expected_phonemes': expected, 'verified_error_type': verified,
++            'local_consent': 'true',
++        }, files={'file': ('synthetic.wav', synthetic_wav(), 'audio/wav')})
++        self.assertEqual(response.status_code, 201, response.text)
++        return response.json()
++
++    def analyze(self, record, payload=None, *, response=None, whisper=False):
++        def handler(request):
++            self.requests.append(request)
++            return response if response is not None else httpx.Response(200, json=payload)
++
++        original_client = httpx.AsyncClient
++        def make_client(**kwargs):
++            return original_client(transport=httpx.MockTransport(handler), **kwargs)
++
++        with patch.object(localapp.httpx, 'AsyncClient', side_effect=make_client):
++            return self.client.post(f"/api/recordings/{record['id']}/analyze", data={
++                'transfer_consent': 'true', 'use_whisper': str(whisper).lower(),
++            })
++
++    def test_classification_and_historical_fields_pass_through(self):
++        record = self.save()
++        payload = candidate_response()
++        response = self.analyze(record, payload)
++        self.assertEqual(response.status_code, 200)
++        result = response.json()
++        for key, value in payload.items():
++            self.assertEqual(result[key], value)
++        self.assertTrue(result['classification_available'])
++        self.assertEqual(result['reference_source'], 'g2p_v0.1_conservative')
++        self.assertEqual(result['reference_validation_status'], 'g2p_provisional')
++        self.assertEqual(record['reference_validation_status'], 'g2p_provisional')
++        self.assertEqual(result['recording_id'], record['id'])
++        request = self.requests[0]
++        self.assertEqual(str(request.url), 'https://modal.invalid/v1/reading/analyze')
++        self.assertEqual(request.headers['X-AcoDyslex-Key'], 'synthetic-test-key')
++        self.assertIn(b'k a t a b a', request.content)
++        self.assertIn(b'RIFF', request.content)
++        self.assertNotIn('synthetic-test-key', response.text)
++        self.assertNotIn('synthetic-test-key', self.client.get('/api/config').text)
++
++    def test_manual_reference_is_not_automatically_verified(self):
++        record = self.save(expected='k a t a b a', verified='omission')
++        result = self.analyze(record, candidate_response()).json()
++        self.assertEqual(result['reference_source'], 'manual')
++        self.assertEqual(result['reference_validation_status'], 'provided_unverified')
++        self.assertFalse(result['phoneme_classification']['confirmed_child_error'])
++
++    def test_missing_reference_remains_missing(self):
++        record = self.save(target='سمكة')
++        payload = candidate_response()
++        payload['phoneme_classification'] = {'status': 'skipped_missing_reference'}
++        result = self.analyze(record, payload).json()
++        self.assertEqual(result['reference_validation_status'], 'missing')
++        self.assertTrue(result['reference_warning'])
++        self.assertEqual(result['phoneme_classification'], payload['phoneme_classification'])
++
++    def test_omitted_or_malformed_classification_does_not_become_zero(self):
++        record = self.save()
++        for classification in [None, [], 'invalid', {}]:
++            with self.subTest(classification=classification):
++                payload = {'status': 'ok'}
++                if classification is not None:
++                    payload['phoneme_classification'] = classification
++                result = self.analyze(record, payload).json()
++                self.assertFalse(result['classification_available'])
++                self.assertIn('classification_note', result)
++                self.assertNotIn('error_counts', result)
++                self.assertEqual(result.get('phoneme_classification'), payload.get('phoneme_classification'))
++
++    def test_skipped_and_ambiguous_responses_are_not_reclassified(self):
++        record = self.save()
++        for status in ['skipped_missing_reference', 'skipped_missing_observation', 'skipped_unsupported_tokens', 'candidate_only']:
++            with self.subTest(status=status):
++                payload = candidate_response()
++                payload['phoneme_classification']['status'] = status
++                payload['phoneme_classification']['analysis']['type_ambiguous'] = True
++                expected = copy.deepcopy(payload['phoneme_classification'])
++                self.assertEqual(self.analyze(record, payload).json()['phoneme_classification'], expected)
++
++    def test_modal_http_errors_are_reported_without_remote_response_body(self):
++        record = self.save()
++        for status in [401, 403, 502]:
++            with self.subTest(status=status):
++                response = self.analyze(record, response=httpx.Response(status, text='private upstream content'))
++                self.assertEqual(response.status_code, 502)
++                self.assertIn(str(status), response.json()['detail'])
++                self.assertNotIn('private upstream content', response.text)
++
++    def test_invalid_json_and_invalid_top_level_are_502(self):
++        record = self.save()
++        responses = [httpx.Response(200, text='<html>invalid</html>')]
++        responses += [httpx.Response(200, json=value) for value in [None, [], 'bad', 42, {}, {'status': 'error'}]]
++        for upstream in responses:
++            with self.subTest(body=upstream.text):
++                self.assertEqual(self.analyze(record, response=upstream).status_code, 502)
++
++    def test_network_failure_is_502(self):
++        record = self.save()
++        with patch.object(localapp.httpx.AsyncClient, 'post', side_effect=httpx.ConnectError('offline')):
++            response = self.client.post(f"/api/recordings/{record['id']}/analyze", data={'transfer_consent': 'true'})
++        self.assertEqual(response.status_code, 502)
++
++    def test_legacy_record_without_provenance_remains_unverified(self):
++        record = self.save(expected='k a t a b a')
++        record.pop('reference_source')
++        record.pop('reference_validation_status')
++        with patch.object(localapp, 'read_metadata', return_value=record):
++            result = self.analyze(record, candidate_response()).json()
++        self.assertEqual(result['reference_validation_status'], 'provided_unverified')
++
++    def test_whisper_optional_transcript_preserves_classification(self):
++        record = self.save()
++        with patch.dict(os.environ, {'ACODYSLEX_ENABLE_WHISPER': '1'}), patch.object(localapp, '_run_whisper', return_value='نص تجريبي') as whisper:
++            result = self.analyze(record, candidate_response(), whisper=True).json()
++        whisper.assert_called_once()
++        self.assertEqual(result['whisper_transcript'], 'نص تجريبي')
++        self.assertEqual(result['phoneme_classification'], candidate_response()['phoneme_classification'])
++
++    def test_whisper_failure_keeps_acoustic_analysis(self):
++        record = self.save()
++        with patch.dict(os.environ, {'ACODYSLEX_ENABLE_WHISPER': '1'}), patch.object(localapp, '_run_whisper', side_effect=RuntimeError('unavailable')):
++            result = self.analyze(record, candidate_response(), whisper=True).json()
++        self.assertIsNone(result['whisper_transcript'])
++        self.assertIn('Whisper indisponible', result['whisper_note'])
++        self.assertTrue(result['classification_available'])
++
++    def test_no_whisper_inference_unless_requested(self):
++        with patch.object(localapp, '_run_whisper') as whisper:
++            self.assertEqual(self.analyze(self.save(), candidate_response()).status_code, 200)
++        whisper.assert_not_called()
++
++
++if __name__ == '__main__':
++    unittest.main()
+--- /dev/null
++++ b/tests/browser/classification.spec.cjs
+@@ -0,0 +1,304 @@
++const {test: base, expect} = require('@playwright/test');
++const fs = require('node:fs/promises');
++
++// All examples are synthetic fixtures, never observations of a child's speech.
++function candidate() {
++  return {
++    status: 'ok', model: 'simulated-model',
++    expected_phonemes: ['k', 'a', 't', 'a', 'b', 'a'],
++    predicted_phonemes: ['k', 'a', 't', 'a', 'b'],
++    candidate_errors: [{type: 'omission'}], acoustics: {duration_seconds: 1},
++    reference_source: 'g2p_v0.1_conservative', reference_validation_status: 'g2p_provisional',
++    classification_available: true,
++    phoneme_classification: {
++      status: 'candidate_only', reference_status: 'g2p_provisional', confirmed_child_error: false,
++      analysis: {
++        error_counts: {omission: 1, inversion: 2, insertion: 3, substitution: 4},
++        errors: [{type: 'omission', reference_position: 5, reference_tokens: ['a'], observed_tokens: []}],
++        type_ambiguous: false, standard_per: 0.2,
++      },
++    },
++  };
++}
++
++function wav() {
++  const data = Buffer.alloc(32044);
++  data.write('RIFF'); data.writeUInt32LE(32036, 4); data.write('WAVEfmt ', 8);
++  data.writeUInt32LE(16, 16); data.writeUInt16LE(1, 20); data.writeUInt16LE(1, 22);
++  data.writeUInt32LE(16000, 24); data.writeUInt32LE(32000, 28);
++  data.writeUInt16LE(2, 32); data.writeUInt16LE(16, 34); data.write('data', 36); data.writeUInt32LE(32000, 40);
++  return data;
++}
++
++const test = base.extend({
++  app: async ({page}, use) => {
++    const errors = [];
++    page.on('pageerror', error => errors.push(error.message));
++    const state = {
++      payload: candidate(), status: 200, raw: null, requests: [], delay: null,
++      entries: [1, 2].map(number => ({
++        id: `00000000-0000-4000-8000-00000000000${number}`, learner_code: `test-${number}`,
++        target_text: 'كَتَبَ', duration_seconds: 1, created_at: '2026-11-05T00:00:00Z',
++      })),
++    };
++    await page.route('**/api/**', async route => {
++      const request = route.request();
++      const url = new URL(request.url());
++      state.requests.push({path: url.pathname, method: request.method(), body: request.postData(), headers: request.headers()});
++      if (url.pathname === '/api/config') return route.fulfill({json: {whisper_enabled: true, modal_ready: true}});
++      if (url.pathname.endsWith('/analyze')) {
++        const response = {status: state.status, body: state.raw ?? JSON.stringify(state.payload), contentType: 'application/json'};
++        if (state.delay) await state.delay;
++        return route.fulfill(response);
++      }
++      if (url.pathname === '/api/recordings' && request.method() === 'POST') {
++        const entry = {...state.entries[0], id: '00000000-0000-4000-8000-000000000003'};
++        state.entries.push(entry);
++        return route.fulfill({status: 201, json: entry});
++      }
++      if (url.pathname === '/api/recordings') return route.fulfill({json: state.entries});
++      if (url.pathname.endsWith('/audio')) return route.fulfill({body: wav(), contentType: 'audio/wav'});
++      if (request.method() === 'DELETE') {
++        state.entries = state.entries.filter(entry => !url.pathname.endsWith(entry.id));
++        return route.fulfill({json: {status: 'deleted'}});
++      }
++      throw new Error(`Unexpected API request: ${request.method()} ${url.pathname}`);
++    });
++    await page.goto('/');
++    await expect(page.getByRole('button', {name: 'Sélectionner'})).toHaveCount(2);
++    await page.getByRole('button', {name: 'Sélectionner'}).first().click();
++    await page.locator('#transfer-consent').check();
++    await use(state);
++    expect(errors).toEqual([]);
++  },
++});
++
++async function analyze(page) {
++  await page.locator('#analyze-btn').click();
++  await expect(page.locator('#analyze-btn')).toBeEnabled();
++}
++
++test('successful analysis displays counts, provenance, details, historical output and JSON export', async ({page, app}) => {
++  await analyze(page);
++  await expect(page.locator('#results')).toBeVisible();
++  await expect(page.locator('#empty-state')).toBeHidden();
++  await expect(page.locator('#phonemeResult dd')).toHaveText(['1', '2', '3', '4']);
++  await expect(page.locator('#phonemeResult')).toContainText('Référence G2P provisoire');
++  await expect(page.locator('#phonemeResult')).toContainText('Hypothèse ASR — confirmation humaine nécessaire');
++  await expect(page.locator('#phonemeResult')).toContainText('non validé sur un audio annoté humainement');
++  await page.locator('#phonemeResult summary').click();
++  await expect(page.locator('#phonemeResult pre')).toContainText('reference_position');
++  await expect(page.locator('#predicted span')).toHaveText(app.payload.predicted_phonemes);
++  await expect(page.locator('#errors')).toContainText('omission');
++  await expect(page.locator('#acoustics')).toContainText('Durée');
++  const request = app.requests.find(item => item.path.endsWith('/analyze'));
++  expect(request.path).toBe(`/api/recordings/${app.entries[0].id}/analyze`);
++  expect(request.headers['x-acodyslex-key']).toBeUndefined();
++  expect(request.body).toContain('transfer_consent');
++  const downloaded = page.waitForEvent('download');
++  await page.locator('#export-json').click();
++  const download = await downloaded;
++  expect(JSON.parse(await fs.readFile(await download.path(), 'utf8'))).toEqual(app.payload);
++});
++
++test('ambiguous classification remains provisional', async ({page, app}) => {
++  app.payload.phoneme_classification.analysis.type_ambiguous = true;
++  await analyze(page);
++  await expect(page.locator('#phonemeResult')).toContainText('Classification ambiguë / à réviser');
++  await expect(page.locator('#phonemeResult dd')).toHaveCount(4);
++});
++
++test('manual reference stays unverified', async ({page, app}) => {
++  app.payload.reference_source = 'manual';
++  app.payload.reference_validation_status = 'provided_unverified';
++  await analyze(page);
++  await expect(page.locator('#phonemeResult')).toContainText('fournie manuellement, non validée humainement');
++});
++
++test('missing reference and warning are explicit', async ({page, app}) => {
++  app.payload.reference_source = 'missing';
++  app.payload.reference_validation_status = 'missing';
++  app.payload.reference_warning = 'Mot non vocalisé.';
++  app.payload.expected_phonemes = [];
++  app.payload.phoneme_classification = {status: 'skipped_missing_reference'};
++  await analyze(page);
++  await expect(page.locator('#phonemeResult')).toContainText('Référence phonémique absente');
++  await expect(page.locator('#phonemeResult')).toContainText('Mot non vocalisé.');
++  await expect(page.locator('#phonemeResult dd')).toHaveCount(0);
++  await expect(page.locator('#errors')).toContainText('comparaison désactivée');
++});
++
++for (const [status, reason] of Object.entries({
++  skipped_missing_reference: 'référence phonémique absente',
++  skipped_missing_observation: 'phonèmes reconnus absents',
++  skipped_unsupported_tokens: 'phonèmes non pris en charge',
++  future_status: 'statut non pris en charge',
++})) {
++  test(`${status} never displays error counts`, async ({page, app}) => {
++    app.payload.phoneme_classification.status = status;
++    await analyze(page);
++    await expect(page.locator('#phonemeResult')).toContainText(reason);
++    await expect(page.locator('#phonemeResult dd')).toHaveCount(0);
++  });
++}
++
++test('omitted classification clears previous counts and never implies zero errors', async ({page, app}) => {
++  await analyze(page);
++  delete app.payload.phoneme_classification;
++  app.payload.classification_available = false;
++  app.payload.classification_note = 'Classification non fournie par Modal.';
++  await analyze(page);
++  await expect(page.locator('#phonemeResult')).toContainText('Classification indisponible');
++  await expect(page.locator('#phonemeResult dd')).toHaveCount(0);
++  await expect(page.locator('#predicted span')).toHaveCount(5);
++});
++
++for (const [name, mutate] of [
++  ['missing count', data => delete data.analysis.error_counts.omission],
++  ['negative count', data => data.analysis.error_counts.omission = -1],
++  ['text count', data => data.analysis.error_counts.omission = '1'],
++  ['fractional count', data => data.analysis.error_counts.omission = 0.5],
++  ['missing analysis', data => delete data.analysis],
++  ['invalid details', data => data.analysis.errors = 'bad'],
++  ['invalid ambiguity', data => data.analysis.type_ambiguous = 'false'],
++  ['contradictory confirmed error', data => data.confirmed_child_error = true],
++]) {
++  test(`malformed classification: ${name}`, async ({page, app}) => {
++    mutate(app.payload.phoneme_classification);
++    await analyze(page);
++    await expect(page.locator('#phonemeResult')).toContainText('Classification indisponible');
++    await expect(page.locator('#phonemeResult dd')).toHaveCount(0);
++  });
++}
++
++test('explicit genuine zero counts may be displayed as candidates', async ({page, app}) => {
++  app.payload.phoneme_classification.analysis.error_counts = {omission: 0, inversion: 0, insertion: 0, substitution: 0};
++  app.payload.phoneme_classification.analysis.errors = [];
++  await analyze(page);
++  await expect(page.locator('#phonemeResult dd')).toHaveText(['0', '0', '0', '0']);
++  await expect(page.locator('#phonemeResult')).toContainText('ne prouve pas une erreur de l’enfant');
++});
++
++for (const status of [401, 403, 502]) {
++  test(`HTTP ${status} hides previous result and permits retry`, async ({page, app}) => {
++    await analyze(page);
++    app.status = status;
++    app.payload = {detail: 'Échec simulé'};
++    await analyze(page);
++    await expect(page.locator('#alert')).toContainText(`HTTP ${status}`);
++    await expect(page.locator('#results')).toBeHidden();
++    await expect(page.locator('#phonemeResult')).toBeEmpty();
++    expect(await page.evaluate(() => lastResult)).toBeNull();
++  });
++}
++
++for (const [name, response] of [
++  ['invalid JSON', '<html>bad gateway</html>'], ['null', 'null'], ['array', '[]'],
++  ['empty object', '{}'], ['error status', '{"status":"error"}'],
++  ['wrong phonemes', '{"status":"ok","predicted_phonemes":{}}'],
++]) {
++  test(`invalid analysis response: ${name}`, async ({page, app}) => {
++    app.raw = response;
++    await analyze(page);
++    await expect(page.locator('#alert')).toContainText('Analyse impossible');
++    await expect(page.locator('#results')).toBeHidden();
++    await expect(page.locator('#phonemeResult dd')).toHaveCount(0);
++  });
++}
++
++test('session change ignores an old in-flight response', async ({page, app}) => {
++  let finish;
++  app.delay = new Promise(resolve => { finish = resolve; });
++  await page.locator('#analyze-btn').click();
++  await expect.poll(() => app.requests.filter(item => item.path.endsWith('/analyze')).length).toBe(1);
++  await page.getByRole('button', {name: 'Sélectionner'}).nth(1).click();
++  const response = page.waitForResponse(res => res.url().endsWith('/analyze'));
++  finish();
++  await response;
++  // Execute after the resolved request's continuation has had a chance to run.
++  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
++  await expect(page.locator('#selected-name')).toContainText('test-2');
++  await expect(page.locator('#results')).toBeHidden();
++  await expect(page.locator('#phonemeResult')).toBeEmpty();
++  await expect(page.locator('#analyze-btn')).toHaveText("Analyser l'audio");
++  app.delay = null;
++  await analyze(page);
++  await expect(page.locator('#results')).toBeVisible();
++});
++
++test('consent gates analysis and Whisper option is forwarded and displayed', async ({page, app}) => {
++  await page.locator('#transfer-consent').uncheck();
++  await page.locator('#analyze-btn').click();
++  await expect(page.locator('#alert')).toContainText('autorisation de traitement distant');
++  expect(app.requests.filter(item => item.path.endsWith('/analyze'))).toHaveLength(0);
++  await page.locator('#transfer-consent').check();
++  await page.locator('#whisper').check();
++  app.payload.whisper_transcript = 'نص تجريبي';
++  await analyze(page);
++  await expect(page.locator('#whisper-result')).toBeVisible();
++  await expect(page.locator('#whisper-text')).toHaveText('نص تجريبي');
++  expect(app.requests.find(item => item.path.endsWith('/analyze')).body).toMatch(/name="use_whisper"\r\n\r\ntrue/);
++});
++
++test('remote strings are rendered as text, never HTML', async ({page, app}) => {
++  const attack = '<img src=x onerror="window.injected=true">';
++  app.payload.reference_warning = attack;
++  app.payload.phoneme_classification.analysis.errors[0].reference_tokens = [attack];
++  await analyze(page);
++  await expect(page.locator('#phonemeResult')).toContainText(attack);
++  await expect(page.locator('#phonemeResult img')).toHaveCount(0);
++  expect(await page.evaluate(() => window.injected)).toBeUndefined();
++});
++
++test('WAV import, consent, save, playback selection and delete still work', async ({page, app}) => {
++  await page.locator('#file-input').setInputFiles({name: 'synthetic.wav', mimeType: 'audio/wav', buffer: wav()});
++  await expect(page.locator('#save-btn')).toBeEnabled();
++  await page.locator('#save-btn').click();
++  await expect(page.locator('#alert')).toContainText('autorisation de conservation');
++  expect(app.requests.filter(item => item.method === 'POST')).toHaveLength(0);
++  await page.locator('#save-consent').check();
++  await page.locator('#save-btn').click();
++  await expect(page.locator('.archive-entry')).toHaveCount(3);
++  await expect(page.locator('#preview')).toHaveAttribute('src', `/api/recordings/${app.entries[2].id}/audio`);
++  await expect(page.locator('#save-btn')).toBeDisabled();
++  await page.getByRole('button', {name: 'Écouter'}).first().click();
++  await expect(page.locator('#preview')).toHaveAttribute('src', `/api/recordings/${app.entries[0].id}/audio`);
++  page.once('dialog', dialog => dialog.accept());
++  await page.locator('.archive-entry.active').getByRole('button', {name: 'Supprimer'}).click();
++  await expect(page.locator('.archive-entry')).toHaveCount(2);
++  await expect(page.locator('#analyze-btn')).toBeDisabled();
++  await expect(page.locator('#results')).toBeHidden();
++});
++
++test('mobile classification fits viewport', async ({page, app}) => {
++  await page.setViewportSize({width: 390, height: 844});
++  await analyze(page);
++  await expect(page.locator('#phonemeResult dd')).toHaveCount(4);
++  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
++  await page.screenshot({path: 'test-results/classification-mobile.png', fullPage: true});
++});
++
++// No /api mocks here: exercise browser -> FastAPI -> mocked Modal -> browser.
++base('full local flow with real storage and proxy, simulated acoustics', async ({page}) => {
++  await page.goto('/');
++  await page.locator('#target').fill('كَتَبَ');
++  await page.locator('#file-input').setInputFiles({name: 'synthetic.wav', mimeType: 'audio/wav', buffer: wav()});
++  await page.locator('#save-consent').check();
++  await page.locator('#save-btn').click();
++  await expect(page.locator('.archive-entry')).toHaveCount(1);
++  await page.locator('#transfer-consent').check();
++  await analyze(page);
++  await expect(page.locator('#phonemeResult dd')).toHaveText(['0', '0', '0', '1']);
++  await expect(page.locator('#phonemeResult')).toContainText('Référence G2P provisoire');
++  await expect(page.locator('#model-name')).toContainText('SIMULATION');
++  await expect(page.locator('#predicted span')).toHaveText(['k', 'a', 'd', 'a', 'b', 'a']);
++  const audioUrl = await page.locator('#preview').getAttribute('src');
++  const audio = await page.request.get(audioUrl);
++  expect(await audio.body()).toEqual(wav());
++  await page.screenshot({path: 'test-results/classification-desktop.png', fullPage: true});
++  page.once('dialog', dialog => dialog.accept());
++  await page.getByRole('button', {name: 'Supprimer'}).click();
++  await expect(page.locator('.archive-entry')).toHaveCount(0);
++  await expect(page.locator('#results')).toBeHidden();
++  expect((await page.request.get(audioUrl)).status()).toBe(404);
++});
+--- /dev/null
++++ b/tests/browser_server.py
+@@ -0,0 +1,51 @@
++"""Isolated server for browser tests. Never contacts Modal or uses real recordings."""
++import os
++from pathlib import Path
++import sys
++import tempfile
++
++sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
++
++import httpx
++import uvicorn
++import app as localapp
++
++
++def simulated_modal(request):
++    assert str(request.url) == 'https://modal.invalid/v1/reading/analyze'
++    assert request.headers['X-AcoDyslex-Key'] == 'synthetic-browser-test-key'
++    assert b'k a t a b a' in request.content
++    assert b'RIFF' in request.content
++    return httpx.Response(200, json={
++        'status': 'ok', 'model': 'SIMULATION — no GPU inference',
++        'target_text': 'كَتَبَ',
++        'expected_phonemes': ['k', 'a', 't', 'a', 'b', 'a'],
++        'predicted_phonemes': ['k', 'a', 'd', 'a', 'b', 'a'],
++        'candidate_errors': [{'type': 'substitution', 'reference_tokens': ['t'], 'observed_tokens': ['d']}],
++        'acoustics': {'duration_seconds': 1},
++        'phoneme_classification': {
++            'status': 'candidate_only', 'reference_status': 'provided_unverified',
++            'confirmed_child_error': False,
++            'analysis': {
++                'error_counts': {'omission': 0, 'inversion': 0, 'insertion': 0, 'substitution': 1},
++                'errors': [{'type': 'substitution', 'reference_position': 2, 'observed_position': 2,
++                            'reference_tokens': ['t'], 'observed_tokens': ['d']}],
++                'type_ambiguous': False,
++            },
++        },
++    })
++
++
++if __name__ == '__main__':
++    os.environ['ACODYSLEX_API_KEY'] = 'synthetic-browser-test-key'
++    os.environ['ACODYSLEX_MODAL_BASE_URL'] = 'https://modal.invalid'
++    os.environ['ACODYSLEX_ENABLE_WHISPER'] = '0'
++    original_client = httpx.AsyncClient
++
++    def mock_client(**kwargs):
++        return original_client(transport=httpx.MockTransport(simulated_modal), **kwargs)
++
++    localapp.httpx.AsyncClient = mock_client
++    with tempfile.TemporaryDirectory(prefix='acodyslex-browser-') as storage:
++        localapp.STORAGE = Path(storage)
++        uvicorn.run(localapp.app, host='127.0.0.1', port=8765, log_level='warning')
+--- /dev/null
++++ b/playwright.config.cjs
+@@ -0,0 +1,18 @@
++const {defineConfig} = require('@playwright/test');
++const fs = require('node:fs');
++
++const localPython = process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python';
++const python = process.env.ACODYSLEX_TEST_PYTHON || (fs.existsSync(localPython) ? localPython : 'python');
++module.exports = defineConfig({
++  testDir: './tests/browser',
++  fullyParallel: true,
++  workers: 2,
++  reporter: 'list',
++  use: {baseURL: 'http://127.0.0.1:8765', headless: true},
++  webServer: {
++    // Real local app, temporary recordings, fake key and a mocked Modal transport.
++    command: `"${python}" tests/browser_server.py`,
++    url: 'http://127.0.0.1:8765',
++    reuseExistingServer: false,
++  },
++});
+--- /dev/null
++++ b/package.json
+@@ -0,0 +1,11 @@
++{
++  "name": "acodyslex-frontend",
++  "version": "0.3.1",
++  "private": true,
++  "scripts": {
++    "test": "playwright test"
++  },
++  "devDependencies": {
++    "@playwright/test": "1.61.1"
++  }
++}
+--- /dev/null
++++ b/package-lock.json
+@@ -0,0 +1,78 @@
++{
++  "name": "acodyslex-frontend",
++  "version": "0.3.1",
++  "lockfileVersion": 3,
++  "requires": true,
++  "packages": {
++    "": {
++      "name": "acodyslex-frontend",
++      "version": "0.3.1",
++      "devDependencies": {
++        "@playwright/test": "1.61.1"
++      }
++    },
++    "node_modules/@playwright/test": {
++      "version": "1.61.1",
++      "resolved": "https://registry.npmjs.org/@playwright/test/-/test-1.61.1.tgz",
++      "integrity": "sha512-8nKv6+0RJSL9FE4jYOEGXnPeM/Hg12qZpmqzZjRh3qM0Y7c3z1mrOTfFLids72RDQYVh9WpLEfR5WdpNX4fkig==",
++      "dev": true,
++      "license": "Apache-2.0",
++      "dependencies": {
++        "playwright": "1.61.1"
++      },
++      "bin": {
++        "playwright": "cli.js"
++      },
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/fsevents": {
++      "version": "2.3.2",
++      "resolved": "https://registry.npmjs.org/fsevents/-/fsevents-2.3.2.tgz",
++      "integrity": "sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==",
++      "dev": true,
++      "hasInstallScript": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "darwin"
++      ],
++      "engines": {
++        "node": "^8.16.0 || ^10.6.0 || >=11.0.0"
++      }
++    },
++    "node_modules/playwright": {
++      "version": "1.61.1",
++      "resolved": "https://registry.npmjs.org/playwright/-/playwright-1.61.1.tgz",
++      "integrity": "sha512-DWnY5o3YbLWK4GovuAVwpqL+1VwGNdUGrRr++8j8PtQQzvAVZUIMjKQ90fY689sEJZJBbZVw1rXaOKSTitkzPQ==",
++      "dev": true,
++      "license": "Apache-2.0",
++      "dependencies": {
++        "playwright-core": "1.61.1"
++      },
++      "bin": {
++        "playwright": "cli.js"
++      },
++      "engines": {
++        "node": ">=18"
++      },
++      "optionalDependencies": {
++        "fsevents": "2.3.2"
++      }
++    },
++    "node_modules/playwright-core": {
++      "version": "1.61.1",
++      "resolved": "https://registry.npmjs.org/playwright-core/-/playwright-core-1.61.1.tgz",
++      "integrity": "sha512-h7Qlt6m4REp25qvIdvbDtVmD4LqVXfpRxhORv9L0jzETM05p4fuPJ3dKyuSXQxDSbXnmS79HAgi9589lGSpLkg==",
++      "dev": true,
++      "license": "Apache-2.0",
++      "bin": {
++        "playwright-core": "cli.js"
++      },
++      "engines": {
++        "node": ">=18"
++      }
++    }
++  }
++}
+--- /dev/null
++++ b/INTEGRATION_REPORT.md
+@@ -0,0 +1,77 @@
++# Intégration de la classification phonémique — 5 novembre 2026
++
++L'appel d'analyse dans `static/app.js`, fonction `analyze()`, transmet maintenant directement le résultat de `jsonFetch()` à `displayPhonemeClassification(result)`, après validation HTTP et validation de la structure. Aucun niveau `result.analysis` n'est ajouté.
++
++## Comportement livré
++
++- Les quatre comptes sont affichés seulement pour `candidate_only`, avec quatre entiers non négatifs présents. Une classification omise, ignorée, invalide ou incomplète n'est jamais convertie en quatre zéros.
++- Les états `skipped_missing_reference`, `skipped_missing_observation`, `skipped_unsupported_tokens` et les statuts inconnus ont des messages explicites.
++- La provenance G2P provisoire, la référence manuelle non validée, les avertissements et les ambiguïtés restent visibles. Toute classification est présentée comme une hypothèse ASR nécessitant confirmation humaine.
++- Les opérations détaillées sont conservées en JSON lisible pour respecter les noms de champs réellement fournis par le service. Le PER est décrit comme une comparaison référence–ASR, sans validation sur audio annoté.
++- Une erreur HTTP/JSON efface le résultat précédent. Une réponse arrivée après un changement de séance est ignorée.
++- Le backend enrichit la réponse avec la provenance et la disponibilité, sans recalculer ni modifier l'objet `phoneme_classification`. Les champs historiques et Whisper restent conservés.
++- Les contraintes WAV et les routes locales sont conservées. Le navigateur appelle uniquement le backend local pour l'analyse ; la clé reste côté serveur.
++- Deux défauts existants constatés pendant la vérification ont été corrigés : le bouton de sauvegarde se réactivait après archivage alors que `wavBlob` était vide ; le style `display:flex` de l'attente pouvait prendre le pas sur l'attribut `hidden`.
++
++## Fichiers modifiés ou ajoutés
++
++| Fichier | Modification |
++| --- | --- |
++| `static/app.js` | Appel d'affichage, validation des réponses, nettoyage des anciens résultats, gestion des changements de séance et bouton de sauvegarde. |
++| `static/phoneme_classification_ui.js` | Nouvelle fonction d'affichage, extraite et renforcée à partir de la fonction existante. |
++| `static/index.html` | Chargement du script une seule fois avant `app.js`, aide G2P actualisée ; zone `phonemeResult` existante conservée. |
++| `static/styles.css` | Présentation des comptes et respect de `hidden`. |
++| `app.py` | Provenance à la sauvegarde et à l'analyse, disponibilité, rejet de réponses invalides ; suppression des impressions de débogage et du corps brut des erreurs distantes. |
++| `tests/test_analysis_integration.py` | Tests du vrai backend local avec transport Modal simulé. |
++| `tests/browser/classification.spec.cjs` | Tests Chromium des cas normaux, limites, erreurs et opérations existantes ; parcours complet local. |
++| `tests/browser_server.py` | Serveur de test isolé : stockage temporaire, fausse clé, transport HTTP simulé sans appel réseau Modal. |
++| `playwright.config.cjs`, `package.json`, `package-lock.json` | Exécution reproductible des tests navigateur, dépendances de développement uniquement. |
++| `.gitignore` | Exclusion des sauvegardes, dépendances Node et résultats de tests. |
++| `README.md` | Retrait d'une valeur de clé en clair, documentation de l'intégration et des tests. |
++| `INTEGRATION_REPORT.md`, `INTEGRATION.diff` | Présent compte rendu et diff livré. |
++
++## Vérifications réellement exécutées
++
++Commandes depuis la racine, avec le Python du `.venv` existant :
++
++```powershell
++.\.venv\Scripts\python.exe -m py_compile app.py arabic_g2p.py
++.\.venv\Scripts\python.exe -m unittest discover -s tests -v
++.\.venv\Scripts\python.exe -m unittest -v test_arabic_g2p.py
++node --check static/app.js
++node --check static/phoneme_classification_ui.js
++npm.cmd install --ignore-scripts --no-audit --no-fund
++npm.cmd test
++```
++
++Résultats : **20 tests backend + 16 tests G2P + 33 tests Chromium réussis**, soit **69 tests**. Les validations syntaxiques ont également réussi. `pytest` était absent ; les suites Python existantes reposent sur `unittest` et ont été exécutées avec ce moteur, sans installer pytest.
++
++La première exécution navigateur a révélé le problème du bouton de sauvegarde. Après correction, la suite complète est passée. Les cas incluent HTTP 401/403/502, JSON invalide, structure incohérente, classification absente, comptes partiels/négatifs/non numériques, ambiguïtés, changements de séance en cours de requête, consentements, export JSON, import/sauvegarde/suppression WAV, affichage Whisper et contenu distant traité comme texte.
++
++Le parcours complet utilise le vrai FastAPI local et un transport Modal simulé : import d'un WAV synthétique, génération G2P, sauvegarde temporaire, requête multipart, retour de classification, affichage, récupération du WAV identique et suppression. Les tests ne lisent ni ne modifient les audios existants dans `recordings/`.
++
++Captures inspectées visuellement : `test-results/classification-desktop.png` et `test-results/classification-mobile.png`. Les données affichées sont simulées. Aucun débordement horizontal constaté à 390 px.
++
++Un avertissement de dépréciation Starlette/httpx est émis par les dépendances Python installées ; il n'empêche pas les tests de réussir. Aucune migration de dépendances serveur n'a été entreprise.
++
++## Sauvegarde et diff
++
++Sauvegarde avant modification : `.codex-backups/20261105T185736Z-classification/`.
++
++Les copies des fichiers de code sont intactes. La copie du README est volontairement expurgée des valeurs de clé avant écriture ; le diff du README compare cette version expurgée au fichier final. Le diff ne contient donc aucune ancienne valeur de clé. Le dossier n'étant pas un dépôt Git, `INTEGRATION.diff` a été produit à partir de cette sauvegarde et des nouveaux fichiers.
++
++Une clé figurait en clair dans le README d'origine. Sa valeur a été retirée de la documentation, sans modifier la configuration serveur ni les secrets Modal. Il est recommandé de renouveler cette clé exposée ; cette rotation n'a pas été effectuée.
++
++## Points non vérifiés
++
++- Aucun appel à l'API Modal réelle, aucune inférence GPU réelle et aucun déploiement.
++- `modal_service.py` et les anciens tests Phase 3 ne sont pas présents dans ce dossier. La présence effective de `phoneme_classification` sur le déploiement actuel reste à confirmer ; son absence est maintenant gérée explicitement.
++- Aucun test du microphone physique ni écoute humaine. Le parcours audio automatique utilise un WAV synthétique silencieux.
++- Whisper a été simulé dans les tests ; ses poids n'ont pas été chargés.
++- Aucune validation linguistique indépendante du G2P ni mesure de qualité sur la parole d'enfants.
++
++Pour utiliser les changements, redémarrer le serveur local si nécessaire :
++
++```powershell
++.\.venv\Scripts\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8000
++```

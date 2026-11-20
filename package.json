@@ -1,0 +1,13 @@
+{
+  "name": "acodyslex-frontend",
+  "version": "0.3.8",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:pcm:smoke": "node tests/pcm_browser_smoke.cjs",
+    "test:pcm:worklet": "node tests/pcm_worklet_unit.cjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1"
+  }
+}

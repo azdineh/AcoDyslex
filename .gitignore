@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+.env
+recordings/*.wav
+recordings/*.json
+recordings/.recommendation-review-key
+recordings/.recommendation-reviews.sqlite3*
+.codex-backups/
+node_modules/
+test-results/
+playwright-report/

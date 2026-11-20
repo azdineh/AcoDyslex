@@ -1,0 +1,10 @@
+/* The technical laboratory is a separate view. All page-level additions stay scoped here. */
+.laboratory-page{isolation:isolate;contain:layout paint;margin:8px 0 30px}
+.laboratory-page .laboratory-header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:25px 28px;margin-bottom:18px;border:1px solid #dfe8f5;border-radius:20px;background:#fff;box-shadow:0 8px 24px #2347750d}
+.laboratory-page .laboratory-header h1{margin:2px 0 7px;font-size:28px}
+.laboratory-page .laboratory-header p:last-child{margin:0;color:#71819a;font-size:13px}
+.laboratory-page .layout{display:grid;grid-template-columns:1.04fr .96fr;gap:20px}
+.laboratory-page .panel{padding:24px 26px;border:1px solid #e2e9f4;border-radius:20px;background:#fff;box-shadow:0 4px 18px #2347750a}
+.laboratory-page .archive{margin-top:20px}
+@media(max-width:920px){.laboratory-page .layout{grid-template-columns:1fr}.laboratory-page .panel{padding:20px}}
+@media(max-width:580px){.laboratory-page .laboratory-header{padding:20px;flex-direction:column}.laboratory-page .laboratory-header button{width:100%}}

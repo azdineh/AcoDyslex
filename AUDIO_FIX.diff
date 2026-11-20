@@ -1,0 +1,268 @@
+--- a/static/app.js
++++ b/static/app.js
+@@ -12,6 +12,7 @@
+   if (previewUrl) URL.revokeObjectURL(previewUrl);
+   wavBlob = blob; previewUrl = URL.createObjectURL(blob);
+   $('preview').src = previewUrl; $('preview').hidden = false;
++  $('replay-btn').disabled = false;
+   $('audio-details').textContent = `${filename} · ${(blob.size/1024).toFixed(1)} Ko`;
+   $('save-btn').disabled = false; $('download-btn').disabled = false;
+ }
+@@ -92,6 +93,22 @@
+   } catch(e){ status(`Impossible de démarrer le micro : ${e.message}`,'err'); stream?.getTracks().forEach(t=>t.stop()); }
+ }
+ function stopRecord() { if(recorder?.state==='recording') recorder.stop(); }
++async function replayAudio(){
++  const player=$('preview');
++  if(!player.getAttribute('src'))return;
++  // Explicit listening action: restore a muted/zero-volume player without altering the WAV.
++  player.muted=false;
++  if(player.volume===0)player.volume=1;
++  player.currentTime=0;
++  try{
++    await player.play();
++  }catch(error){
++    const message=error.name==='NotAllowedError'
++      ? 'Le navigateur a bloqué la lecture. Cliquez de nouveau sur Réécouter.'
++      : 'Lecture impossible. Réessayez ou téléchargez le WAV pour vérifier le fichier.';
++    status(message,'err');
++  }
++}
+ function downloadBlob(blob,name){const link=document.createElement('a'),url=URL.createObjectURL(blob);link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);}
+ async function jsonFetch(url,options={}){
+   const res=await fetch(url,options); let data;
+@@ -133,6 +150,7 @@
+   if(previewUrl)URL.revokeObjectURL(previewUrl);previewUrl=null;
+   if(entry){$('preview').src=`/api/recordings/${id}/audio`;$('preview').hidden=false;$('audio-details').textContent=`Audio sauvegardé : ${entry.learner_code}`;}
+   else{$('preview').removeAttribute('src');$('preview').hidden=true;$('audio-details').textContent='Aucun audio sélectionné.';}
++  $('replay-btn').disabled=!entry;
+   renderEntries();
+ }
+ function renderEntries(){
+@@ -149,7 +167,8 @@
+     const audio=make('button','Écouter');audio.onclick=()=>{
+       const player=$('preview');if(previewUrl)URL.revokeObjectURL(previewUrl);previewUrl=null;
+       player.src=`/api/recordings/${item.id}/audio`;player.hidden=false;
+-      $('audio-details').textContent=`Audio sauvegardé : ${item.learner_code}`;player.play().catch(()=>{});
++      $('replay-btn').disabled=false;
++      $('audio-details').textContent=`Audio sauvegardé : ${item.learner_code}`;replayAudio();
+     };btns.append(audio);
+     const dl=make('button','WAV');dl.onclick=()=>{const link=document.createElement('a');link.href=`/api/recordings/${item.id}/audio`;link.download=`${item.id}.wav`;link.click()};btns.append(dl);
+     const del=make('button','Supprimer','delete');del.onclick=()=>deleteEntry(item.id);btns.append(del);row.append(btns);parent.append(row);
+@@ -216,6 +235,7 @@
+ async function initialize(){
+   $('start-btn').addEventListener('click',startRecord);$('stop-btn').addEventListener('click',stopRecord);
+   $('save-btn').addEventListener('click',saveRecord);
++  $('replay-btn').addEventListener('click',replayAudio);
+   $('download-btn').addEventListener('click',()=>wavBlob&&downloadBlob(wavBlob,'acodyslex_lecture.wav'));
+   $('analyze-btn').addEventListener('click',analyze);
+   $('file-input').addEventListener('change',e=>{
+--- a/static/index.html
++++ b/static/index.html
+@@ -67,6 +67,7 @@
+           <div class="import"><label for="file-input">Ou importer un fichier WAV existant</label><input id="file-input"
+               type="file" accept=".wav,audio/wav" /></div>
+           <audio id="preview" controls preload="none" aria-label="Écouter l'enregistrement" hidden></audio>
++          <button id="replay-btn" class="secondary" type="button" disabled>▶ Réécouter</button>
+           <div id="audio-details" class="minor-message">Aucun audio sélectionné.</div>
+         </div>
+         <label class="consent"><input id="save-consent" type="checkbox" /><span>Je confirme être autorisé à enregistrer
+--- a/tests/browser/classification.spec.cjs
++++ b/tests/browser/classification.spec.cjs
+@@ -261,7 +261,7 @@
+   await expect(page.locator('.archive-entry')).toHaveCount(3);
+   await expect(page.locator('#preview')).toHaveAttribute('src', `/api/recordings/${app.entries[2].id}/audio`);
+   await expect(page.locator('#save-btn')).toBeDisabled();
+-  await page.getByRole('button', {name: 'Écouter'}).first().click();
++  await page.getByRole('button', {name: 'Écouter', exact: true}).first().click();
+   await expect(page.locator('#preview')).toHaveAttribute('src', `/api/recordings/${app.entries[0].id}/audio`);
+   page.once('dialog', dialog => dialog.accept());
+   await page.locator('.archive-entry.active').getByRole('button', {name: 'Supprimer'}).click();
+@@ -276,6 +276,24 @@
+   await expect(page.locator('#phonemeResult dd')).toHaveCount(4);
+   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+   await page.screenshot({path: 'test-results/classification-mobile.png', fullPage: true});
++});
++
++test('playback rejection is visible instead of being silently ignored', async ({page, app}) => {
++  await page.evaluate(() => {
++    document.getElementById('preview').play = () => Promise.reject(new DOMException('Blocked', 'NotAllowedError'));
++  });
++  await page.locator('#replay-btn').click();
++  await expect(page.locator('#alert')).toContainText('Le navigateur a bloqué la lecture');
++  await page.getByRole('button', {name: 'Écouter', exact: true}).first().click();
++  await expect(page.locator('#alert')).toContainText('Le navigateur a bloqué la lecture');
++});
++
++test('replay availability follows the selected or imported audio', async ({page, app}) => {
++  await expect(page.locator('#replay-btn')).toBeEnabled();
++  await page.evaluate(() => selectRecord(null));
++  await expect(page.locator('#replay-btn')).toBeDisabled();
++  await page.locator('#file-input').setInputFiles({name: 'synthetic.wav', mimeType: 'audio/wav', buffer: wav()});
++  await expect(page.locator('#replay-btn')).toBeEnabled();
+ });
+ 
+ // No /api mocks here: exercise browser -> FastAPI -> mocked Modal -> browser.
+--- /dev/null
++++ b/tests/browser/audio.spec.cjs
+@@ -0,0 +1,119 @@
++const {test, expect} = require('@playwright/test');
++const fs = require('node:fs/promises');
++const os = require('node:os');
++const path = require('node:path');
++
++function toneWav() {
++  const rate = 48000, frames = rate * 8;
++  const data = Buffer.alloc(44 + frames * 2);
++  data.write('RIFF'); data.writeUInt32LE(data.length - 8, 4); data.write('WAVEfmt ', 8);
++  data.writeUInt32LE(16, 16); data.writeUInt16LE(1, 20); data.writeUInt16LE(1, 22);
++  data.writeUInt32LE(rate, 24); data.writeUInt32LE(rate * 2, 28);
++  data.writeUInt16LE(2, 32); data.writeUInt16LE(16, 34); data.write('data', 36);
++  data.writeUInt32LE(frames * 2, 40);
++  for (let i = 0; i < frames; i++) data.writeInt16LE(Math.round(8000 * Math.sin(2 * Math.PI * 440 * i / rate)), 44 + i * 2);
++  return data;
++}
++
++// Capture a known audible signal via Chromium's virtual microphone, never the real mic.
++test('microphone capture preserves an audible signal through conversion, playback and archive', async ({playwright}) => {
++  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'acodyslex-tone-'));
++  const tonePath = path.join(directory, 'tone.wav');
++  await fs.writeFile(tonePath, toneWav());
++  const browser = await playwright.chromium.launch({headless: true, args: [
++    '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream',
++    `--use-file-for-fake-audio-capture=${tonePath}`,
++  ]});
++  try {
++    const page = await browser.newPage({baseURL: 'http://127.0.0.1:8765'});
++    const pageErrors = [];
++    page.on('pageerror', error => pageErrors.push(error.message));
++    let entries = [], savedWav = null;
++    await page.route('**/api/**', async route => {
++      const request = route.request(), pathname = new URL(request.url()).pathname;
++      if (pathname === '/api/config') return route.fulfill({json: {modal_ready: false, whisper_enabled: false}});
++      if (pathname.endsWith('/audio')) return route.fulfill({body: savedWav, contentType: 'audio/wav'});
++      if (pathname === '/api/recordings' && request.method() === 'POST') {
++        const form = await new Request('http://localhost', {
++          method: 'POST', headers: request.headers(), body: request.postDataBuffer(),
++        }).formData();
++        savedWav = Buffer.from(await form.get('file').arrayBuffer());
++        entries = [{id: '00000000-0000-4000-8000-000000000001', learner_code: 'synthetic-tone', target_text: 'كَتَبَ', duration_seconds: 2, created_at: '2026-11-05T00:00:00Z'}];
++        return route.fulfill({status: 201, json: entries[0]});
++      }
++      if (pathname === '/api/recordings') return route.fulfill({json: entries});
++      throw new Error(`Unexpected request: ${pathname}`);
++    });
++    if (process.env.ACODYSLEX_COMPARE_AUDIO_BACKUP === '1') {
++      const oldScript = await fs.readFile(path.resolve('.codex-backups/20261105T185736Z-classification/static/app.js'), 'utf8');
++      await page.route('**/static/app.js', route => route.fulfill({body: oldScript, contentType: 'text/javascript'}));
++    }
++    await page.goto('/');
++    await page.locator('#start-btn').click();
++    await expect(page.locator('#timer')).toHaveText('00:02', {timeout: 8000});
++    await page.locator('#stop-btn').click();
++    await expect(page.locator('#alert')).toContainText('Enregistrement prêt');
++    const captured = await page.evaluate(async () => {
++      const bytes = await wavBlob.arrayBuffer(), view = new DataView(bytes);
++      let squares = 0, peak = 0;
++      for (let i = 44; i < bytes.byteLength; i += 2) {
++        const sample = view.getInt16(i, true) / 32768;
++        squares += sample * sample; peak = Math.max(peak, Math.abs(sample));
++      }
++      return {rms: Math.sqrt(squares / ((bytes.byteLength - 44) / 2)), peak,
++        rate: view.getUint32(24, true), channels: view.getUint16(22, true), bits: view.getUint16(34, true),
++        bytes: [...new Uint8Array(bytes)]};
++    });
++    expect(captured.rate).toBe(16000); expect(captured.channels).toBe(1); expect(captured.bits).toBe(16);
++    expect(captured.rms).toBeGreaterThan(0.10); expect(captured.peak).toBeGreaterThan(0.18);
++
++    // Measure the rendered audio stream, not just elapsed time or nonempty WAV bytes.
++    async function measurePlayback() {
++      return page.evaluate(async () => {
++        const player = document.getElementById('preview');
++        if (!window.testPlayback) {
++          const context = new AudioContext(), analyser = context.createAnalyser();
++          context.createMediaElementSource(player).connect(analyser);
++          analyser.connect(context.destination);
++          window.testPlayback = {context, analyser};
++        }
++        const {context, analyser} = window.testPlayback;
++        await context.resume();
++        player.currentTime = 0;
++        await player.play();
++        const samples = new Float32Array(analyser.fftSize);
++        let peak = 0;
++        for (let tick = 0; tick < 20; tick++) {
++          await new Promise(resolve => setTimeout(resolve, 25));
++          analyser.getFloatTimeDomainData(samples);
++          for (const sample of samples) peak = Math.max(peak, Math.abs(sample));
++        }
++        player.pause();
++        return {peak, muted: player.muted, volume: player.volume, error: player.error?.code};
++      });
++    }
++    if (process.env.ACODYSLEX_COMPARE_AUDIO_BACKUP !== '1') {
++      await page.evaluate(() => {const player=document.getElementById('preview');player.muted=true;player.volume=0;});
++      await page.locator('#replay-btn').click();
++    }
++    const localPlayback = await measurePlayback();
++    expect(localPlayback.muted).toBe(false); expect(localPlayback.volume).toBeGreaterThan(0);
++    expect(localPlayback.peak).toBeGreaterThan(0.18); expect(localPlayback.error).toBeUndefined();
++    await page.locator('#save-consent').check();
++    await page.locator('#save-btn').click();
++    await expect(page.locator('.archive-entry')).toHaveCount(1);
++    expect(savedWav).toEqual(Buffer.from(captured.bytes));
++    if (process.env.ACODYSLEX_COMPARE_AUDIO_BACKUP !== '1') {
++      await page.evaluate(() => {const player=document.getElementById('preview');player.muted=true;player.volume=0;});
++    }
++    await page.getByRole('button', {name: 'Écouter', exact: true}).click();
++    const archivePlayback = await measurePlayback();
++    expect(archivePlayback.peak).toBeGreaterThan(0.18);
++    expect(archivePlayback.muted).toBe(false); expect(archivePlayback.volume).toBeGreaterThan(0);
++    expect(pageErrors).toEqual([]);
++    console.log(`Audible capture: rms=${captured.rms.toFixed(3)}, local peak=${localPlayback.peak.toFixed(3)}, archive peak=${archivePlayback.peak.toFixed(3)}`);
++  } finally {
++    await browser.close();
++    await fs.rm(directory, {recursive: true, force: true});
++  }
++});
+--- /dev/null
++++ b/AUDIO_DIAGNOSTIC.md
+@@ -0,0 +1,38 @@
++# Réécoute audio — 5 novembre 2026
++
++Signalement : le compteur de lecture avance sans son ; la fonction était audible avant l'intégration de la classification.
++
++La comparaison avec `.codex-backups/20261105T185736Z-classification/static/app.js` confirme que `startRecord`, `recordStopped`, `encodeRecording`, `downsample`, `encodeWav` et `setAudio` n'avaient pas été modifiés pendant cette intégration. Cela ne suffit pas à exclure un problème dans la session du navigateur de l'utilisateur.
++
++Un nouveau test utilise un microphone virtuel Chromium alimenté par un signal de 440 Hz non silencieux. Il traverse les vraies API `getUserMedia` et `MediaRecorder`, la conversion WAV, le lecteur, la sauvegarde simulée et la réécoute de l'archive. Il mesure le signal à la sortie du lecteur avec Web Audio, et vérifie que les octets sauvegardés sont identiques au WAV capturé.
++
++Résultats observés avec l'ancienne version puis la version intégrée : RMS du WAV de 0,172, crête de lecture de 0,246 avant et après sauvegarde. Le défaut signalé n'est donc pas reproduit dans cet environnement contrôlé. Les anciens tests avec un WAV silencieux ne validaient pas l'audibilité.
++
++## Corrections ciblées
++
++- Ajout du bouton **Réécouter** pour l'audio en mémoire ou sélectionné.
++- Une action explicite « Réécouter » ou « Écouter » enlève le mode muet du lecteur et rétablit son volume seulement s'il est à zéro. Elle reprend au début de l'audio.
++- Les rejets de `play()` sont maintenant affichés ; ils étaient auparavant masqués par un `catch` vide sur le bouton d'archive.
++- Aucun changement du gain, du microphone, des échantillons audio, de la conversion WAV ou des réglages Windows.
++
++Le test sonore vérifie aussi la réactivation après mise volontaire du lecteur en mode muet avec un volume à zéro. D'autres tests vérifient les erreurs de lecture et la disponibilité du bouton selon la sélection.
++
++Commandes exécutées :
++
++```powershell
++npm.cmd test -- tests/browser/audio.spec.cjs
++$env:ACODYSLEX_COMPARE_AUDIO_BACKUP = '1'
++npm.cmd test -- tests/browser/audio.spec.cjs
++Remove-Item Env:ACODYSLEX_COMPARE_AUDIO_BACKUP
++node --check static/app.js
++npm.cmd test
++npm.cmd test -- tests/browser/classification.spec.cjs -g 'WAV import, consent'
++```
++
++La suite complète a validé 35 cas sur 36. Le dernier échec venait du sélecteur de test « Écouter », qui sélectionnait désormais le nouveau bouton « Réécouter ». Après passage au nom exact, ce cas a été relancé et a réussi. Le test sonore et les deux nouveaux tests de réécoute font partie des cas réussis.
++
++La comparaison avec la sauvegarde nécessite le dossier de sauvegarde local. Le test normal n'en dépend pas. Tous les tests utilisent un signal synthétique et des API simulées, sans microphone physique, sans modification des enregistrements existants et sans appel Modal.
++
++Sauvegarde avant ce correctif : `.codex-backups/20261105T194506Z-audio/`. Diff ciblé : `AUDIO_FIX.diff`.
++
++Pour charger le bouton dans la page ouverte, sauvegarder ou télécharger d'abord tout audio en mémoire à conserver, puis faire **Ctrl+F5**. Essayer **Réécouter**. La résolution du silence dans la session réelle de l'utilisateur reste à confirmer ; ce test ne vérifie ni le périphérique de sortie physique ni le mode muet de l'onglet Chrome.

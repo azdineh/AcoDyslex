@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="ar" dir="rtl" class="i18n-loading" data-version="0.5.0">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#e9f0ff" />
+  <title>AcoDyslex · Atelier de lecture</title>
+  <link rel="stylesheet" href="/static/styles.css?v=0.6.31" />
+    <link rel="stylesheet" href="/static/reading_report.css?v=0.4.19" />
+  <link rel="stylesheet" href="/static/laboratory.css" />
+  <link rel="stylesheet" href="/static/ai_processing_modal.css?v=0.6.1" />
+  <script src="/static/i18n.js?v=0.3.8" defer></script>
+  <script src="/static/intro_home.js?v=0.2.4" defer></script>
+  <script src="/static/phoneme_classification_ui.js" defer></script>
+  <script src="/static/app.js?v=0.6.18" defer></script>
+  <script src="/static/session_audio_store.js" defer></script>
+  <script src="/static/reading_waveform.js" defer></script>
+  <script src="/static/remediation_ui.js?v=0.6.1" defer></script>
+  <script src="/static/activity_library.js?v=0.6.1" defer></script>
+  <script src="/static/ai_processing_modal.js?v=0.6.1" defer></script>
+    <script src="/static/session_app.js?v=0.6.16" defer></script>
+</head>
+
+<body>
+  <main id="intro-home" class="intro-home" aria-labelledby="intro-title">
+    <section class="intro-card">
+      <div class="intro-brand-row">
+      <img class="intro-logo" src="/guideres/logo2.png" alt="AcoDyslex" />
+      <aside class="intro-model-summary" aria-label="Informations sur le modèle acoustique">
+        <div class="intro-model-summary-head"><span class="intro-model-icon" aria-hidden="true">◈</span><div><small data-model-summary="label">النموذج الصوتي</small><strong>Arabic Phoneme ASR v2</strong></div></div>
+        <div class="intro-model-summary-grid">
+          <div><span class="intro-model-icon" aria-hidden="true">⌁</span><p><small data-model-summary="typeLabel">النوع</small><b data-model-summary="typeValue">تعرف فونيمي للكلام العربي</b></p></div>
+          <div><span class="intro-model-icon" aria-hidden="true">◉</span><p><small data-model-summary="baseLabel">النموذج الأساسي من Meta AI</small><b data-model-summary="baseValue">facebook/wav2vec2-large-xlsr-53</b></p></div>
+          <div><span class="intro-model-icon" aria-hidden="true">ع</span><p><small data-model-summary="arabicLabel">التكيّف</small><b data-model-summary="arabicValue">العربية الفصحى</b></p></div>
+          <a href="https://modal.com" target="_blank" rel="noopener noreferrer"><span class="intro-model-icon" aria-hidden="true">☁</span><p><small data-model-summary="hostLabel">الاستضافة</small><b>Modal.com</b></p></a>
+        </div>
+      </aside>
+      </div>
+      <div class="intro-copy">
+        <div class="intro-carousel" aria-label="Présentation AcoDyslex">
+          <section class="intro-slide is-active" data-intro-slide="0">
+        <p class="intro-kicker" id="intro-kicker">Analyse acoustique de la lecture arabe</p>
+        <h1 id="intro-title">Détecter les erreurs de lecture pour mieux accompagner</h1>
+        <p id="intro-description">AcoDyslex analyse les caractéristiques acoustiques d’une lecture pour repérer des erreurs potentielles chez les enfants ayant des difficultés de lecture, notamment une dyslexie. Les résultats restent à vérifier par un professionnel ou un adulte qualifié.</p>
+        <div class="intro-model" aria-label="Technologie d’analyse"><span aria-hidden="true">✦</span><strong>Meta AI</strong><small id="intro-model-copy">Détection acoustique d’erreurs de lecture</small></div>
+        <button id="intro-start" class="intro-start" type="button">Start</button>
+          </section>
+          <section class="intro-slide intro-prototype" data-intro-slide="1" hidden>
+            <p class="intro-kicker" id="intro-prototype-kicker"></p>
+            <h2 id="intro-prototype-title"></h2>
+            <p id="intro-prototype-first"></p>
+            <p id="intro-prototype-second"></p>
+          </section>
+          <div class="intro-pagination" role="tablist" aria-label="Pages de présentation">
+            <button class="intro-page-dot is-active" type="button" role="tab" data-intro-page="0" aria-label="Page 1" aria-selected="true"></button>
+            <button class="intro-page-dot" type="button" role="tab" data-intro-page="1" aria-label="Page 2" aria-selected="false"></button>
+          </div>
+        </div>
+      </div>
+      <div class="intro-visual" aria-hidden="true"><div class="intro-orbit orbit-one"></div><div class="intro-orbit orbit-two"></div><img src="/guideres/Maquette3D.png" alt="" /></div>
+    </section>
+  </main>
+  <div id="app-shell" class="container" hidden>
+    <label class="language-switcher" for="language-select"><span class="visually-hidden">Langue de l’interface</span><select id="language-select"><option value="ar">العربية</option><option value="en">English</option></select></label>
+    <header class="topbar">
+      <div class="brand"><img class="brand-icon brand-logo" src="/guideres/logo1.png" alt="AcoDyslex" />
+        <div><strong>AcoDyslex</strong><small>Atelier de lecture · Prototype v0.3 · PCM direct</small></div>
+      </div>
+      <div class="topbar-actions">
+        <nav class="main-nav" aria-label="Menu principal">
+          <button id="home-nav-btn" class="nav-button active" type="button" aria-current="page">Accueil</button>
+          <button id="laboratory-nav-btn" class="nav-button" type="button">Laboratoire audio</button>
+        </nav>
+        <span class="mode-chip">Mode démonstration locale</span>
+      </div>
+    </header>
+    <div id="child-page">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Analyse acoustique de la lecture arabe</p>
+        <h1>Détecter les erreurs de lecture</h1>
+        <p>Enregistrez la lecture de l’enfant : l’analyse acoustique repère des erreurs potentielles, notamment pour les enfants présentant des difficultés de lecture ou une dyslexie. Chaque résultat doit être vérifié par un adulte qualifié.</p>
+      </div>
+      <div class="arabic-hero" dir="rtl" aria-label="Lecture en arabe">اقرأ وتعلّم <span>✦</span></div>
+    </section>
+
+    <main id="v3-app" class="v3-shell" aria-label="Parcours de lecture AcoDyslex V0.3">
+      <nav class="journey" aria-label="Étapes de la séance">
+        <span data-phase="home" class="active">1. Profil</span>
+        <span data-phase="reading">2. Lecture</span>
+        <span data-phase="review">3. Bilan</span>
+        <span data-phase="remediation">4. Exercices</span>
+        <span data-phase="completed">5. Progrès</span>
+      </nav>
+
+      <section id="v3-home" class="v3-screen" aria-labelledby="profiles-title">
+        <div class="v3-heading">
+          <div><p class="eyebrow-blue">Espace local de l’accompagnant</p><h2 id="profiles-title">Qui va lire aujourd’hui ?</h2>
+            <p>Choisissez un profil pseudonyme. Les données restent sur ce prototype local.</p></div>
+          <div class="home-heading-actions"><button id="profile-welcome" class="secondary" type="button" aria-label="Retour à l’accueil">← Retour à l’accueil</button><button id="new-profile-btn" class="primary" type="button">+ Ajouter un profil</button></div>
+        </div>
+        <form id="profile-form" class="profile-form" hidden>
+          <label>Prénom fictif ou alias<input id="profile-name" maxlength="40" required placeholder="Ex. Lecteur Soleil"></label>
+          <label>Âge<input id="profile-age" type="number" min="5" max="18" required value="8"></label>
+          <label>Sexe<select id="profile-sex"><option value="unspecified">Non précisé</option><option value="female">Fille</option><option value="male">Garçon</option></select></label>
+          <fieldset class="avatar-picker"><legend>Choisir un avatar</legend>
+            <label><input type="radio" name="avatar_id" value="neutral" checked><img src="/static/avatars/neutral.svg" alt="Avatar neutre"><span>Neutre</span></label>
+            <label><input type="radio" name="avatar_id" value="sky"><img src="/static/avatars/sky.svg" alt="Avatar bleu"><span>Ciel</span></label>
+            <label><input type="radio" name="avatar_id" value="mint"><img src="/static/avatars/mint.svg" alt="Avatar vert"><span>Menthe</span></label>
+            <label><input type="radio" name="avatar_id" value="coral"><img src="/static/avatars/coral.svg" alt="Avatar corail"><span>Corail</span></label>
+            <label><input type="radio" name="avatar_id" value="violet"><img src="/static/avatars/violet.svg" alt="Avatar violet"><span>Violet</span></label>
+          </fieldset>
+          <button class="primary" type="submit">Enregistrer</button><button id="profile-cancel" class="secondary" type="button">Annuler</button>
+          <small>N’inscrivez pas de nom complet réel.</small>
+        </form>
+        <div id="profile-list" class="profile-grid" aria-live="polite"></div>
+        <div id="profile-empty" class="v3-empty"><span>☀</span><strong>Créez un premier profil pseudonyme</strong><p>Vous pourrez ensuite lancer une séance de 15 mots.</p></div>
+      </section>
+
+      <section id="v3-reading" class="v3-screen" hidden aria-labelledby="reading-title">
+        <div class="reading-header"><button id="reading-home" class="secondary reading-home-button" type="button" aria-label="Retour à l’accueil">← Retour à l’accueil</button><div><p class="eyebrow-blue">Lecture des mots</p><h2 id="reading-session-title">La lecture de <span id="reading-child"></span></h2></div><strong id="reading-progress">Mot 1 sur 15</strong></div>
+        <div class="word-progress" aria-hidden="true"><i id="word-progress-fill"></i></div>
+        <div id="reading-stage" class="reading-stage">
+          <p id="word-role" class="word-role">Révision</p><h2 id="reading-title">Lis ce mot à voix haute</h2>
+          <div id="reading-word" class="reading-word" lang="ar" dir="rtl"></div>
+          <div class="reading-settings"><label><input id="colored-letters" type="checkbox"> Lettres en couleurs</label><label>Taille <input id="word-size" type="range" min="64" max="132" value="94"></label></div>
+          <div class="reading-waveform-wrap"><canvas id="reading-waveform" class="reading-waveform" width="720" height="100" aria-label="Visualisation en direct de la voix"></canvas><span id="waveform-label">Microphone inactif</span></div>
+          <div class="recording-feedback" aria-live="polite"><span id="recording-indicator" class="recording-indicator">Prêt</span><div class="time-track" aria-label="Temps disponible"><i id="time-remaining"></i></div></div>
+          <div class="session-recorder"><strong id="session-timer">00:00</strong><button id="session-pause" class="secondary" type="button" disabled>Pause</button><button id="session-start" class="record-primary" type="button"><span class="record-microphone" aria-hidden="true">🎙</span><span id="session-start-label">Commencer la lecture</span></button><button id="session-stop" class="primary" type="button" disabled>Terminer ce mot</button></div>
+          <audio id="session-preview" controls hidden></audio>
+          <div id="reading-message" class="v3-message" role="status" aria-live="polite"></div>
+          <div class="reading-actions"><button id="session-cancel" class="secondary recording-cancel" type="button" disabled>Annuler l’enregistrement en cours</button><button id="retry-word" class="secondary" type="button">Recommencer ce mot</button></div>
+          <details class="reading-companion-tools"><summary>Outils de l’accompagnateur</summary><p>Importez un WAV uniquement pour remplacer ou compléter la lecture du mot affiché.</p><label class="secondary file-button">Importer un WAV<input id="session-file" type="file" accept=".wav,audio/wav"></label></details>
+        </div>
+      </section>
+
+      <section id="v3-ready" class="v3-screen acoustic-analysis-screen" hidden aria-labelledby="ready-title">
+        <header class="acoustic-analysis-header">
+          <div class="acoustic-ai-mark" aria-hidden="true"><span>AI</span><i></i><i></i><i></i></div>
+          <div><p class="eyebrow-blue">Étape intelligente du parcours</p><h2 id="ready-title">Analyse Acoustique AI</h2><p>Les 15 enregistrements sont analysés automatiquement pour mieux comprendre la lecture de l’enfant.</p></div>
+          <div class="analysis-header-actions"><span class="acoustic-ai-badge">Analyse intelligente</span><button id="analysis-home" class="secondary analysis-return" type="button">Revenir aux profils</button></div>
+        </header>
+
+        <section id="acoustic-model-panel" class="acoustic-model-panel" aria-labelledby="model-provenance-title">
+          <div class="model-provenance-head">
+            <div><p class="eyebrow-blue">Configuration réelle du service</p><h3 id="model-provenance-title">Modèle et infrastructure de l’analyse</h3></div>
+            <span id="model-config-status" class="model-config-status" role="status" aria-live="polite">Lecture de la configuration Modal…</span>
+          </div>
+          <div class="model-provenance-grid">
+            <article id="model-developer-card" class="model-provenance-card developer-card" hidden>
+              <img id="model-developer-logo" src="/static/meta-platforms-logo.svg" alt="Meta">
+              <small>Développeur du modèle de base</small>
+              <strong id="model-base-developer">—</strong>
+              <a id="model-base-link" target="_blank" rel="noopener noreferrer"><code id="model-base-id">—</code></a>
+            </article>
+            <article class="model-provenance-card acoustic-model-card">
+              <small>Modèle acoustique chargé</small>
+              <strong id="acoustic-model-name">Identification en cours…</strong>
+              <a id="model-metadata-link" target="_blank" rel="noopener noreferrer"><code id="acoustic-model-id">—</code></a>
+              <dl>
+                <div><dt>Version publiée</dt><dd id="acoustic-model-version">—</dd></div>
+                <div><dt>Révision d’exécution</dt><dd id="acoustic-model-revision">—</dd></div>
+                <div><dt>Adaptation arabe</dt><dd id="acoustic-model-publisher">—</dd></div>
+              </dl>
+            </article>
+            <article class="model-provenance-card infrastructure-card">
+              <small>Infrastructure d’exécution</small>
+              <strong id="acoustic-infrastructure">Modal</strong>
+              <span id="acoustic-deployment">Déploiement en cours d’identification…</span>
+              <span>API <b id="acoustic-api-version">—</b></span>
+            </article>
+          </div>
+          <div class="model-arabic-capability"><span aria-hidden="true">ع</span><div><strong>Capacité de traitement de la parole arabe</strong><p id="acoustic-arabic-capability">Vérification en cours…</p></div></div>
+          <p id="model-rigor-note" class="model-rigor-note">Les informations affichées sont comparées à l’identifiant renvoyé par le déploiement Modal actif.</p>
+        </section>
+
+        <div class="analysis-batch-summary" aria-label="Résumé du lot audio">
+          <div><small>Mots lus</small><strong>15</strong><span>Séance terminée</span></div>
+          <div><small>Audios prêts</small><strong id="ready-count">0 / 15</strong><span>Vérifiés localement</span></div>
+          <div><small>Envoi prévu</small><strong>1 lot</strong><span>Une seule transmission</span></div>
+          <div><small>Lecteur</small><strong id="analysis-child">—</strong><span>Profil pseudonyme</span></div>
+        </div>
+
+        <ol id="analysis-flow" class="analysis-flow" aria-label="Parcours de l’analyse">
+          <li data-analysis-step="prepared"><span class="flow-icon" aria-hidden="true">✓</span><strong>Lectures enregistrées</strong><small>15 WAV locaux</small></li>
+          <li data-analysis-step="fastapi"><span class="flow-icon" aria-hidden="true">↥</span><strong>FastAPI</strong><small>Envoi groupé</small></li>
+          <li data-analysis-step="ai" class="ai-step"><span class="flow-icon" aria-hidden="true">AI</span><strong>Analyse Acoustique AI</strong><small>Modal Acoustic AI</small></li>
+          <li data-analysis-step="report"><span class="flow-icon" aria-hidden="true">◇</span><strong>Bilan & exercices</strong><small>Aide personnalisée</small></li>
+        </ol>
+
+        <section id="analysis-state" class="analysis-state" data-state="ready" aria-labelledby="analysis-status-title">
+          <div class="analysis-state-visual" aria-hidden="true"><span></span><span></span><span></span><b>AI</b><span></span><span></span><span></span></div>
+          <div class="analysis-state-copy"><p class="analysis-state-kicker">Lot audio prêt</p><h3 id="analysis-status-title">Les 15 lectures sont prêtes</h3><p id="batch-message" role="status" aria-live="polite">Vérifiez l’autorisation, puis lancez l’analyse pour préparer le bilan pédagogique.</p></div>
+          <div id="analysis-progress" class="analysis-progress" role="progressbar" aria-label="Progression de l’analyse" aria-valuenow="0"><i></i></div>
+        </section>
+
+        <div class="analysis-outcomes" aria-label="Résultats attendus"><span>◉ Bilan de lecture</span><span>◇ Exercices personnalisés</span><span>↗ Mise à jour du progrès</span></div>
+
+        <label class="analysis-consent"><input id="session-transfer" type="checkbox"><span><strong>J’autorise l’envoi sécurisé des 15 lectures vers le service d’Analyse Acoustique AI pour obtenir un bilan pédagogique personnalisé.</strong><small>Les audios servent uniquement à l’analyse de cette séance.</small></span></label>
+        <button id="analyze-batch" class="primary analysis-launch" type="button" disabled>Lancer l’Analyse Acoustique AI</button>
+
+        <details class="analysis-recordings"><summary>Vérifier ou recommencer une lecture</summary><p>Les fichiers restent stockés localement jusqu’à la réussite de l’analyse.</p><div id="recording-summary" class="recording-summary"></div></details>
+      </section>
+
+      <section id="v3-review" class="v3-screen reading-report" hidden aria-labelledby="report-title">
+        <header class="report-hero">
+          <div class="report-heading-copy">
+            <p class="report-kicker" data-report="eyebrow">تقرير القراءة</p>
+            <h2 id="report-title" data-report="title">تقرير القراءة</h2>
+            <p class="report-intro" data-report="intro">راجع الكلمات والتسجيلات. اقتراحات الذكاء الاصطناعي ليست نتائج مؤكدة حتى يراجعها المرافق.</p>
+          </div>
+          <div class="report-session-chip"><span data-report="session">الجلسة</span><strong id="report-session-count">15</strong><span data-report="words">كلمة</span></div>
+          <div class="report-header-actions"><button id="download-learning-guide" class="secondary learning-guide-button" type="button"></button><button id="quit-report" class="report-exit" type="button" data-report="exit">Quitter le rapport</button></div>
+        </header>
+        <div id="report-summary" class="report-summary" aria-label="Session summary"></div>
+        <div class="report-toolbar">
+          <div><h3 data-report="wordAnalysis">تحليل الكلمات</h3><p data-report="filterHint">اختر الكلمات التي تريد مراجعتها</p></div>
+          <div class="report-toolbar-controls"><label class="phoneme-display-toggle"><input id="phoneme-display-arabic" type="checkbox" checked><span id="phoneme-display-label">عرض الفونيمات بالعربية</span></label><label class="report-filter-label"><span data-report="filter">تصفية</span><select id="report-filter" aria-label="Filter words"><option value="all" data-report="all">كل الكلمات</option><option value="candidates" data-report="candidateFilter">اقتراحات الذكاء الاصطناعي</option><option value="confirmed" data-report="confirmedFilter">ملاحظات مؤكدة</option></select></label></div>
+        </div>
+        <p id="result-explanation" class="result-explanation"></p>
+        <nav id="report-word-nav" class="report-word-nav" aria-label="Navigation entre les mots"></nav>
+        <div id="child-report" class="word-report" aria-live="polite"></div>
+        <div class="report-footer">
+          <div id="receipt-message" class="v3-message" role="status" aria-live="polite"></div>
+          <button id="verify-report" class="report-continue" type="button"><span data-report="continue">متابعة إلى الأنشطة السبعة</span><span aria-hidden="true">←</span></button>
+        </div>
+      </section>
+
+      <section id="v3-remediation" class="v3-screen remediation-screen" hidden aria-labelledby="exercise-title">
+        <header class="remediation-header">
+          <div><p id="activity-eyebrow" class="eyebrow-blue">الأنشطة التعليمية</p><h2 id="exercise-title">اختر نشاطًا</h2></div>
+          <div class="remediation-header-actions"><strong id="exercise-progress" class="remediation-count" aria-live="polite">0 / 44</strong><button id="back-to-activities" class="secondary activity-back" type="button" hidden>العودة إلى الأنشطة</button></div>
+        </header>
+        <ol id="exercise-steps" class="remediation-steps" aria-label="Progression des activités" hidden></ol>
+        <div id="exercise-list" class="remediation-content"></div>
+        <div class="remediation-session-actions">
+          <button id="pause-remediation" class="text-button" type="button">إيقاف مؤقت</button>
+          <button id="leave-remediation" class="text-button" type="button">العودة لاحقًا</button>
+          <button id="abandon-remediation" class="text-button danger" type="button">إنهاء الأنشطة</button>
+          <button id="complete-session" class="primary complete-session" type="button" hidden disabled>Terminer la séance</button>
+        </div>
+      </section>
+
+      <section id="v3-completed" class="v3-screen" hidden aria-labelledby="completed-title">
+        <div class="completion-card"><span>★</span><h2 id="completed-title">Bravo, séance terminée !</h2><p id="completion-text"></p><div id="progress-skills" class="skill-bars"></div><button id="back-profiles" class="primary" type="button">Retour aux profils</button></div>
+      </section>
+    </main>
+    </div>
+
+    <section id="laboratory-page" class="laboratory-page" hidden aria-labelledby="laboratory-title">
+    <div class="laboratory-header">
+      <div><p class="eyebrow-blue">Outils techniques de l’accompagnant</p><h1 id="laboratory-title" tabindex="-1">Laboratoire audio</h1><p>Capture libre, diagnostic PCM et inspection détaillée du modèle.</p></div>
+      <button id="laboratory-back-btn" class="secondary" type="button">← Retour à l’accueil</button>
+    </div>
+    <div id="alert" class="alert" role="status" aria-live="polite"></div>
+    <main class="layout">
+      <section class="panel" aria-labelledby="record-title">
+        <div class="panel-title"><span class="step">01</span>
+          <div>
+            <h2 id="record-title">Nouvelle lecture</h2>
+            <p>Préparez la séance et captez le son.</p>
+          </div>
+        </div>
+        <div class="field-row">
+          <label class="field"><span>Code anonyme de l'élève</span><input id="learner" maxlength="40" autocomplete="off"
+              value="lecteur-001" placeholder="lecteur-001" /><small>N'utilisez aucun nom réel.</small></label>
+          <label class="field"><span>Type d'erreur vérifié (facultatif)</span><select id="verified-error">
+              <option value="">Non vérifié</option>
+              <option value="inversion">Inversion</option>
+              <option value="omission">Omission</option>
+              <option value="insertion">Insertion</option>
+              <option value="substitution">Substitution</option>
+            </select></label>
+        </div>
+        <label class="field"><span>Texte à lire en arabe</span><input id="target" dir="rtl" lang="ar"
+            class="arabic-input" value="سمكة" maxlength="300" /></label>
+        <label class="field"><span>Phonèmes attendus (facultatif, à annoter)</span><input id="phonemes" dir="ltr"
+            placeholder="Ex. s a m a k a — à vérifier" maxlength="1000" /><small>Sans saisie, une conversion G2P
+            provisoire
+            est tentée pour les mots vocalisés pris en charge. Toute référence reste à vérifier.</small></label>
+        <div class="capture-box">
+          <div class="capture-head">
+            <div class="micro-illustration" aria-hidden="true">🎙</div>
+            <div><strong>Enregistrement vocal</strong>
+              <p>WAV mono · 16 kHz · PCM 16 bits · 20 s maximum</p>
+            </div>
+          </div>
+          <label class="field microphone-field" for="microphone-select"><span>Microphone utilisé</span>
+            <select id="microphone-select">
+              <option value="">Microphone par défaut</option>
+            </select>
+          </label>
+          <div class="microphone-level">
+            <label for="microphone-meter">Niveau reçu</label>
+            <meter id="microphone-meter" min="0" max="100" value="0">0</meter>
+            <p id="microphone-status" role="status">Cliquez sur Commencer et parlez : le niveau doit bouger.</p>
+          </div>
+          <div class="record-actions"><button class="primary" id="start-btn" type="button">● Commencer</button><button
+              id="stop-btn" class="secondary" type="button" disabled>■ Arrêter</button><span id="timer"
+              class="timer">00:00</span></div>
+          <div class="import"><label for="file-input">Ou importer un fichier WAV existant</label><input id="file-input"
+              type="file" accept=".wav,audio/wav" /></div>
+          <audio id="preview" controls preload="none" aria-label="Écouter l'enregistrement" hidden></audio>
+          <button id="replay-btn" class="secondary" type="button" disabled>▶ Réécouter</button>
+          <div id="audio-details" class="minor-message">Aucun audio sélectionné.</div>
+          <details id="mic-diagnostics" class="mic-diagnostics">
+            <summary>Diagnostic du microphone (RMS, crête, source)</summary>
+            <pre id="mic-diagnostics-text">Aucun enregistrement effectué.</pre>
+          </details>
+        </div>
+        <label class="consent"><input id="save-consent" type="checkbox" /><span>Je confirme être autorisé à enregistrer
+            et conserver cet audio localement pour cette séance.</span></label>
+        <div class="actions"><button id="save-btn" class="primary" type="button" disabled>Sauvegarder la
+            lecture</button><button id="download-btn" class="secondary" type="button" disabled>Télécharger le
+            WAV</button></div>
+        <p class="notice">Important : cette version est destinée aux essais locaux et à des données de test. Ne
+          l'utilisez pas avec des enregistrements identifiables d'enfants sans les garanties de sécurité et les
+          autorisations appropriées.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="analysis-title">
+        <div class="panel-title"><span class="step">02</span>
+          <div>
+            <h2 id="analysis-title">Analyse de lecture</h2>
+            <p>Modèle phonémique AcoDyslex sur Modal.</p>
+          </div>
+        </div>
+        <div class="selected-record"><small>Séance sélectionnée</small><strong id="selected-name">Aucune séance
+            sauvegardée</strong></div>
+        <label class="consent"><input id="transfer-consent" type="checkbox" /><span>Je suis autorisé à envoyer cet audio
+            au service d'analyse Modal. Je comprends qu'il sera traité sur un serveur distant.</span></label>
+        <label id="whisper-row" class="consent whisper"><input id="whisper" type="checkbox" disabled /><span>Activer la
+            transcription Whisper en complément <small id="whisper-state">Module désactivé
+              (optionnel).</small></span></label>
+        <button id="analyze-btn" class="primary wide" type="button" disabled>Analyser l'audio</button>
+        <div id="results" class="results" hidden>
+          <div class="result-head"><span class="status-dot"></span><strong>Analyse reçue</strong><small
+              id="model-name"></small></div>
+          <div class="result-section">
+            <h3>Phonèmes prédits</h3>
+            <div id="predicted" class="phoneme-list"></div>
+          </div>
+          <div class="result-section">
+            <h3>Classification phonémique</h3>
+
+            <section id="phonemeResult" aria-live="polite">
+              <!-- Résultats de classification phonémique -->
+            </section>
+          </div>
+          <div class="result-section">
+            <h3>Erreurs candidates</h3>
+            <div id="errors" class="error-box"></div>
+          </div>
+          <div class="result-section">
+            <h3>Informations acoustiques</h3>
+            <div id="acoustics" class="metrics"></div>
+          </div>
+          <div class="result-section" id="whisper-result" hidden>
+            <h3>Texte reconnu par Whisper (indicatif)</h3>
+            <p id="whisper-text" class="arabic-text" dir="rtl"></p>
+          </div>
+          <p id="warning" class="notice"></p>
+          <details>
+            <summary>Afficher le JSON complet</summary>
+            <pre id="json-output"></pre>
+          </details>
+          <button id="export-json" class="secondary" type="button">Exporter le JSON</button>
+        </div>
+        <div id="empty-state" class="empty-result"><span aria-hidden="true">◎</span><strong>En attente d'une
+            analyse</strong>
+          <p>Sauvegardez une lecture puis lancez l'analyse pour afficher les phonèmes reconnus.</p>
+        </div>
+      </section>
+    </main>
+
+    <section class="panel archive" aria-labelledby="history-title">
+      <div class="panel-title"><span class="step">03</span>
+        <div>
+          <h2 id="history-title">Audios sauvegardés</h2>
+          <p>Archivage local par code anonyme et date de séance.</p>
+        </div>
+      </div>
+      <div id="archive-list" class="archive-list">
+        <p>Chargement...</p>
+      </div>
+    </section>
+    <div id="app-reset-zone" class="app-reset-zone" hidden><button id="reset-app" class="secondary reset-app-button" type="button">Réinitialiser entièrement l’application</button><p>Supprime tous les profils, séances et enregistrements locaux.</p></div>
+    </section>
+    <footer>Prototype pédagogique expérimental · Aucun diagnostic médical · Pas d'envoi audio sans action explicite
+    </footer>
+  </div>
+</body>
+
+</html>

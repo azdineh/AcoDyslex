@@ -1,0 +1,754 @@
+{
+  "project": "AcoDyslex",
+  "model": "MostafaMaroof/wav2vec2-arabic-phoneme-asr",
+  "model_url": "https://huggingface.co/MostafaMaroof/wav2vec2-arabic-phoneme-asr",
+  "language": "ar",
+  "description_fr": "Dictionnaire de présentation arabe des symboles phonémiques rapportés pour le modèle. Adapté à la colonne ملاحظة des résultats d’analyse acoustique.",
+  "provenance": "Structuration de la liste et des correspondances fournies dans la réponse précédente ; mapping à vérifier contre la version du modèle réellement déployée.",
+  "counts": {
+    "phoneme_and_associated_symbols": 75,
+    "technical_tokens": 3,
+    "total": 78,
+    "simple_consonants": 28,
+    "geminated_consonants": 28,
+    "vowels": 12,
+    "other_symbols": 7
+  },
+  "notes_fr": [
+    "Les phonèmes sont des symboles de sortie du modèle, pas nécessairement des caractères IPA standard.",
+    "Conserver le symbole du modèle pour tous les calculs ; utiliser arabic et name_ar uniquement pour l’affichage.",
+    "Une prédiction du modèle ne constitue pas à elle seule une erreur vérifiée de l’enfant.",
+    "Ne pas convertir automatiquement les entrées à mapping_status a_verifier, variante_a_verifier ou non_documente sans validation.",
+    "Les voyelles courtes sont des diacritiques ; les voyelles longues peuvent avoir plusieurs graphies selon le contexte.",
+    "Dans les remarques, préserver le sens « attendu → produit » et le type d’écart."
+  ],
+  "phonemes": [
+    {
+      "symbol": "$",
+      "arabic": "ش",
+      "name_ar": "الشين",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "$",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "$$",
+      "arabic": "شّ",
+      "name_ar": "الشين المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "$",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "*",
+      "arabic": "ذ",
+      "name_ar": "الذال",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "*",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "**",
+      "arabic": "ذّ",
+      "name_ar": "الذال المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "*",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "<",
+      "arabic": "ء",
+      "name_ar": "الهمزة",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "<",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "<<",
+      "arabic": "ءّ",
+      "name_ar": "الهمزة المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "<",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "A",
+      "arabic": "َ",
+      "name_ar": "الفتحة المفخمة",
+      "category": "voyelle_courte",
+      "emphatic": true,
+      "mapping_status": "documente_dans_recapitulatif",
+      "note": "La représentation écrite n’est pas une correspondance graphème-phonème univoque."
+    },
+    {
+      "symbol": "AA",
+      "arabic": "ا",
+      "name_ar": "المد بالألف المفخم",
+      "category": "voyelle_longue",
+      "emphatic": true,
+      "mapping_status": "documente_dans_recapitulatif",
+      "note": "La représentation écrite n’est pas une correspondance graphème-phonème univoque."
+    },
+    {
+      "symbol": "AH",
+      "arabic": null,
+      "name_ar": null,
+      "category": "indetermine",
+      "mapping_status": "non_documente",
+      "note": "Signification non établie dans le récapitulatif ; ne pas convertir automatiquement."
+    },
+    {
+      "symbol": "D",
+      "arabic": "ض",
+      "name_ar": "الضاد",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "D",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "DD",
+      "arabic": "ضّ",
+      "name_ar": "الضاد المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "D",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "E",
+      "arabic": "ع",
+      "name_ar": "العين",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "E",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "EE",
+      "arabic": "عّ",
+      "name_ar": "العين المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "E",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "H",
+      "arabic": "ح",
+      "name_ar": "الحاء",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "H",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "HH",
+      "arabic": "حّ",
+      "name_ar": "الحاء المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "H",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "I",
+      "arabic": "ِ",
+      "name_ar": "الكسرة المفخمة",
+      "category": "voyelle_courte",
+      "emphatic": true,
+      "mapping_status": "documente_dans_recapitulatif",
+      "note": "La représentation écrite n’est pas une correspondance graphème-phonème univoque."
+    },
+    {
+      "symbol": "II",
+      "arabic": "ي",
+      "name_ar": "المد بالياء المفخم",
+      "category": "voyelle_longue",
+      "emphatic": true,
+      "mapping_status": "documente_dans_recapitulatif",
+      "note": "La représentation écrite n’est pas une correspondance graphème-phonème univoque."
+    },
+    {
+      "symbol": "S",
+      "arabic": "ص",
+      "name_ar": "الصاد",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "S",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "SS",
+      "arabic": "صّ",
+      "name_ar": "الصاد المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "S",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "T",
+      "arabic": "ط",
+      "name_ar": "الطاء",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "T",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "TT",
+      "arabic": "طّ",
+      "name_ar": "الطاء المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "T",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "U",
+      "arabic": "ُ",
+      "name_ar": "الضمة المفخمة",
+      "category": "voyelle_courte",
+      "emphatic": true,
+      "mapping_status": "documente_dans_recapitulatif",
+      "note": "La représentation écrite n’est pas une correspondance graphème-phonème univoque."
+    },
+    {
+      "symbol": "UU",
+      "arabic": "و",
+      "name_ar": "المد بالواو المفخم",
+      "category": "voyelle_longue",
+      "emphatic": true,
+      "mapping_status": "documente_dans_recapitulatif",
+      "note": "La représentation écrite n’est pas une correspondance graphème-phonème univoque."
+    },
+    {
+      "symbol": "Z",
+      "arabic": "ظ",
+      "name_ar": "الظاء",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "Z",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "ZZ",
+      "arabic": "ظّ",
+      "name_ar": "الظاء المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "Z",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "^",
+      "arabic": "ث",
+      "name_ar": "الثاء",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "^",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "^^",
+      "arabic": "ثّ",
+      "name_ar": "الثاء المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "^",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "a",
+      "arabic": "َ",
+      "name_ar": "الفتحة",
+      "category": "voyelle_courte",
+      "emphatic": false,
+      "mapping_status": "documente_dans_recapitulatif",
+      "note": "La représentation écrite n’est pas une correspondance graphème-phonème univoque."
+    },
+    {
+      "symbol": "aa",
+      "arabic": "[آ]",
+      "arabic2": "ا / ى",
+      "name_ar": "المد بالألف",
+      "category": "voyelle_longue",
+      "emphatic": false,
+      "mapping_status": "documente_dans_recapitulatif",
+      "note": "La représentation écrite n’est pas une correspondance graphème-phonème univoque."
+    },
+    {
+      "symbol": "b",
+      "arabic": "ب",
+      "name_ar": "الباء",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "b",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "bb",
+      "arabic": "بّ",
+      "name_ar": "الباء المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "b",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "d",
+      "arabic": "د",
+      "name_ar": "الدال",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "d",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "dd",
+      "arabic": "دّ",
+      "name_ar": "الدال المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "d",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "f",
+      "arabic": "ف",
+      "name_ar": "الفاء",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "f",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "ff",
+      "arabic": "فّ",
+      "name_ar": "الفاء المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "f",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "g",
+      "arabic": "غ",
+      "name_ar": "الغين",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "g",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "gg",
+      "arabic": "غّ",
+      "name_ar": "الغين المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "g",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "h",
+      "arabic": "ه",
+      "name_ar": "الهاء",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "h",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "hh",
+      "arabic": "هّ",
+      "name_ar": "الهاء المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "h",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "i",
+      "arabic": "ِ",
+      "name_ar": "الكسرة",
+      "category": "voyelle_courte",
+      "emphatic": false,
+      "mapping_status": "documente_dans_recapitulatif",
+      "note": "La représentation écrite n’est pas une correspondance graphème-phonème univoque."
+    },
+    {
+      "symbol": "ii",
+      "arabic": "ي",
+      "name_ar": "المد بالياء",
+      "category": "voyelle_longue",
+      "emphatic": false,
+      "mapping_status": "documente_dans_recapitulatif",
+      "note": "La représentation écrite n’est pas une correspondance graphème-phonème univoque."
+    },
+    {
+      "symbol": "j",
+      "arabic": "ج",
+      "name_ar": "الجيم",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "j",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "jj",
+      "arabic": "جّ",
+      "name_ar": "الجيم المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "j",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "k",
+      "arabic": "ك",
+      "name_ar": "الكاف",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "k",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "kk",
+      "arabic": "كّ",
+      "name_ar": "الكاف المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "k",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "l",
+      "arabic": "ل",
+      "name_ar": "اللام",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "l",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "ll",
+      "arabic": "لّ",
+      "name_ar": "اللام المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "l",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "m",
+      "arabic": "م",
+      "name_ar": "الميم",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "m",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "mm",
+      "arabic": "مّ",
+      "name_ar": "الميم المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "m",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "n",
+      "arabic": "ن",
+      "name_ar": "النون",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "n",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "nn",
+      "arabic": "نّ",
+      "name_ar": "النون المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "n",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "p",
+      "arabic": "پ",
+      "name_ar": "صوت پ",
+      "category": "consonne_non_standard",
+      "mapping_status": "a_verifier",
+      "note": "Graphème pédagogique pour le son /p/."
+    },
+    {
+      "symbol": "pp",
+      "arabic": "پّ",
+      "name_ar": "صوت پ المشدد",
+      "category": "consonne_non_standard",
+      "mapping_status": "a_verifier",
+      "note": "Graphème pédagogique pour le son /p/ redoublé."
+    },
+    {
+      "symbol": "q",
+      "arabic": "ق",
+      "name_ar": "القاف",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "q",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "qq",
+      "arabic": "قّ",
+      "name_ar": "القاف المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "q",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "r",
+      "arabic": "ر",
+      "name_ar": "الراء",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "r",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "rr",
+      "arabic": "رّ",
+      "name_ar": "الراء المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "r",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "s",
+      "arabic": "س",
+      "name_ar": "السين",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "s",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "sh",
+      "arabic": "ش",
+      "name_ar": "الشين",
+      "category": "consonne",
+      "mapping_status": "documente_dans_recapitulatif",
+      "note": "Variante latine du jeton du modèle, affichée comme la lettre arabe ش."
+    },
+    {
+      "symbol": "sil",
+      "arabic": null,
+      "name_ar": "صمت",
+      "category": "marqueur_silence",
+      "mapping_status": "documente_dans_recapitulatif",
+      "note": "Marqueur de silence : ne pas interpréter comme phonème arabe."
+    },
+    {
+      "symbol": "ss",
+      "arabic": "سّ",
+      "name_ar": "السين المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "s",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "t",
+      "arabic": "ت",
+      "name_ar": "التاء",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "t",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "th",
+      "arabic": "ث",
+      "name_ar": "الثاء",
+      "category": "variante",
+      "mapping_status": "variante_a_verifier",
+      "note": "Variante de transcription mentionnée dans le récapitulatif."
+    },
+    {
+      "symbol": "tt",
+      "arabic": "تّ",
+      "name_ar": "التاء المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "t",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "u",
+      "arabic": "ُ",
+      "name_ar": "الضمة",
+      "category": "voyelle_courte",
+      "emphatic": false,
+      "mapping_status": "documente_dans_recapitulatif",
+      "note": "La représentation écrite n’est pas une correspondance graphème-phonème univoque."
+    },
+    {
+      "symbol": "uu",
+      "arabic": "و",
+      "name_ar": "المد بالواو",
+      "category": "voyelle_longue",
+      "emphatic": false,
+      "mapping_status": "documente_dans_recapitulatif",
+      "note": "La représentation écrite n’est pas une correspondance graphème-phonème univoque."
+    },
+    {
+      "symbol": "v",
+      "arabic": "ڤ",
+      "name_ar": "صوت ڤ",
+      "category": "consonne_non_standard",
+      "mapping_status": "a_verifier",
+      "note": "Graphème pédagogique pour le son /v/."
+    },
+    {
+      "symbol": "w",
+      "arabic": "و",
+      "name_ar": "الواو",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "w",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "ww",
+      "arabic": "وّ",
+      "name_ar": "الواو المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "w",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "x",
+      "arabic": "خ",
+      "name_ar": "الخاء",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "x",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "xx",
+      "arabic": "خّ",
+      "name_ar": "الخاء المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "x",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "y",
+      "arabic": "ي",
+      "name_ar": "الياء",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "y",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "yy",
+      "arabic": "يّ",
+      "name_ar": "الياء المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "y",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "z",
+      "arabic": "ز",
+      "name_ar": "الزاي",
+      "category": "consonne",
+      "geminated": false,
+      "base_symbol": "z",
+      "mapping_status": "documente_dans_recapitulatif"
+    },
+    {
+      "symbol": "zz",
+      "arabic": "زّ",
+      "name_ar": "الزاي المشدد",
+      "category": "consonne_geminee",
+      "geminated": true,
+      "base_symbol": "z",
+      "mapping_status": "documente_dans_recapitulatif"
+    }
+  ],
+  "technical_tokens": [
+    {
+      "symbol": "|",
+      "category": "separateur",
+      "arabic": null,
+      "note": "Séparateur technique CTC ; pas un phonème."
+    },
+    {
+      "symbol": "[UNK]",
+      "category": "inconnu",
+      "arabic": null,
+      "note": "Jeton inconnu ; pas un phonème."
+    },
+    {
+      "symbol": "[PAD]",
+      "category": "remplissage",
+      "arabic": null,
+      "note": "Jeton de padding ; pas un phonème."
+    }
+  ],
+  "examples": [
+    {
+      "expected": "s",
+      "produced": "S",
+      "error_type": "substitution",
+      "note_ar": "استبدال صوت السين (س) بصوت الصاد (ص)"
+    },
+    {
+      "expected": "l",
+      "produced": "d",
+      "error_type": "substitution",
+      "note_ar": "استبدال صوت اللام (ل) بصوت الدال (د)"
+    },
+    {
+      "expected": "a",
+      "produced": "aa",
+      "error_type": "substitution",
+      "note_ar": "إطالة الفتحة القصيرة إلى مد بالألف"
+    },
+    {
+      "expected": "sh",
+      "produced": "s",
+      "error_type": "substitution",
+      "note_ar": "استبدال صوت الشين (ش) بصوت السين (س)"
+    },
+    {
+      "expected": "bb",
+      "produced": "b",
+      "error_type": "degemination",
+      "note_ar": "عدم نطق الشدة على الباء"
+    },
+    {
+      "expected": "r",
+      "produced": null,
+      "error_type": "omission",
+      "note_ar": "حذف صوت الراء (ر)"
+    }
+  ]
+}

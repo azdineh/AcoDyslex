@@ -1,0 +1,196 @@
+{
+  "project": "AcoDyslex",
+  "version": "0.1.0",
+  "purpose": "Taxonomie pédagogique des difficultés de lecture arabe pour recommandation explicable d'exercices",
+  "scope": "Soutien de la lecture, prioritairement auprès d'enfants déjà identifiés comme dyslexiques ; pas de diagnostic médical",
+  "status": "proposition a valider avec orthophoniste/enseignant specialise",
+  "principles": [
+    "Ne pas diagnostiquer la dyslexie à partir de l'audio",
+    "L'ASR seul n'est pas une preuve d'une erreur réelle",
+    "Distinguer type d'erreur, intensité pédagogique et degré de certitude",
+    "Ne pas surcorriger les écarts de durée vocalique isolés",
+    "Prendre en compte la langue parlée, l'arabe standard, les diacritiques et le niveau de lecture"
+  ],
+  "error_types": [
+    {
+      "code": "E01",
+      "type": "inversion",
+      "label_fr": "Inversion / permutation phonémique",
+      "priority_tier": 1,
+      "priority_order": 1,
+      "definition": "Ordre relatif de deux phonèmes interverti, à distinguer d'une substitution multiple et d'une erreur de transcription.",
+      "example": {
+        "target": "سَمَك",
+        "observed": "مَسَك",
+        "note": "Vérifier à l'écoute que les phonèmes initiaux /s/ et /m/ ont été permutés."
+      },
+      "skill_targets": [
+        "phoneme_order",
+        "auditory_sequencing",
+        "phoneme_grapheme_mapping"
+      ],
+      "intervention_ids": [
+        "INV01",
+        "INV02",
+        "INV03"
+      ],
+      "evidence_cautions": [
+        "Un alignement texte-texte ne prouve pas une inversion acoustique."
+      ]
+    },
+    {
+      "code": "E02",
+      "type": "omission",
+      "label_fr": "Omission / suppression",
+      "priority_tier": 1,
+      "priority_order": 2,
+      "definition": "Phonème attendu non prononcé lors de la lecture.",
+      "example": {
+        "target": "مَدْرَسَة",
+        "observed": "مَدَسَة",
+        "note": "Exemple illustratif d'omission du /r/ ; la réalisation doit être confirmée sur l'audio."
+      },
+      "skill_targets": [
+        "phoneme_detection",
+        "phoneme_segmentation",
+        "phoneme_grapheme_mapping"
+      ],
+      "intervention_ids": [
+        "OMI01",
+        "OMI02",
+        "OMI03"
+      ],
+      "evidence_cautions": [
+        "Vérifier bruit, débit et phonèmes faibles acoustiquement."
+      ]
+    },
+    {
+      "code": "E03",
+      "type": "insertion",
+      "label_fr": "Insertion / ajout",
+      "priority_tier": 1,
+      "priority_order": 3,
+      "definition": "Un ou plusieurs phonèmes ou segments supplémentaires produits lors de la lecture.",
+      "example": {
+        "target": "سَمَك",
+        "observed": "سَمَكَك",
+        "note": "Pseudo-mot illustratif avec ajout du segment /a k/ ; il ne représente pas une insertion d’un phonème unique."
+      },
+      "skill_targets": [
+        "phoneme_counting",
+        "phoneme_segmentation",
+        "controlled_blending"
+      ],
+      "intervention_ids": [
+        "INS01",
+        "INS02",
+        "INS03"
+      ],
+      "evidence_cautions": [
+        "Distinguer répétition, hésitation et bégaiement éventuels d'une insertion en décodage."
+      ]
+    },
+    {
+      "code": "E04",
+      "type": "consonant_substitution",
+      "label_fr": "Substitution consonantique",
+      "priority_tier": 1,
+      "priority_order": 4,
+      "definition": "Consonne attendue remplacée par une autre consonne.",
+      "example": {
+        "target": "سَارَ",
+        "observed": "صَارَ",
+        "note": "Exemple de contraste entre /s/ et /sˤ/ ; les deux mots existent."
+      },
+      "skill_targets": [
+        "auditory_discrimination",
+        "phoneme_grapheme_mapping",
+        "contrastive_decoding"
+      ],
+      "intervention_ids": [
+        "SUB01",
+        "SUB02",
+        "SUB03"
+      ],
+      "evidence_cautions": [
+        "Variations dialectales et articulatoires : ne pas diagnostiquer à partir d'un seul son."
+      ]
+    },
+    {
+      "code": "E05",
+      "type": "short_vowel_confusion",
+      "label_fr": "Confusion des voyelles brèves",
+      "priority_tier": 2,
+      "priority_order": 5,
+      "definition": "Écart vocalique bref, seulement si les voyelles sont spécifiées dans le support de lecture et audibles de façon fiable.",
+      "example": {
+        "target": "بَ",
+        "observed": "بِ",
+        "note": "Contraste /ba/ et /bi/ ; ne pas déduire la vocalisation d'un texte non vocalisé."
+      },
+      "skill_targets": [
+        "short_vowel_discrimination",
+        "diacritic_grapheme_mapping"
+      ],
+      "intervention_ids": [
+        "SV01",
+        "SV02"
+      ],
+      "evidence_cautions": [
+        "Ne pas générer cette erreur à partir d'un texte cible sans harakat."
+      ]
+    },
+    {
+      "code": "E06",
+      "type": "long_vowel_confusion",
+      "label_fr": "Confusion de durée vocalique",
+      "priority_tier": 3,
+      "priority_order": 6,
+      "definition": "Écart entre voyelle brève et longue. Faible priorité par défaut : ne cibler que si changement du mot/sens ou répétition confirmée.",
+      "example": {
+        "target": "كَتَبَ",
+        "observed": "كَاتَبَ",
+        "note": "Exemple où l'allongement modifie la forme lexicale ; validation auditive indispensable."
+      },
+      "skill_targets": [
+        "vowel_length_discrimination",
+        "contextual_word_reading"
+      ],
+      "intervention_ids": [
+        "LV01",
+        "LV02"
+      ],
+      "evidence_cautions": [
+        "Jamais de correction automatique pour un écart isolé de durée sans conséquence démontrée."
+      ]
+    }
+  ],
+  "secondary_skills_not_error_types": [
+    "fluidite",
+    "conscience_morphologique",
+    "comprehension",
+    "orthographe"
+  ],
+  "scientific_references": [
+    {
+      "title": "Structured Literacy: Effective Instruction for Students with Dyslexia and Related Reading Difficulties",
+      "url": "https://dyslexiaida.org/structured-literacy-effective-instruction-for-students-with-dyslexia-and-related-reading-difficulties/",
+      "note": "Enseignement explicite, systématique, cumulatif, avec rétroaction"
+    },
+    {
+      "title": "Development of a remediation program for Egyptian dyslexic children",
+      "url": "https://www.sciencedirect.com/science/article/pii/S2090506811001096",
+      "note": "Programme arabophone combinant fusion, segmentation, lecture et orthographe"
+    },
+    {
+      "title": "Phonological Awareness of Dyslexic Jordanian Arabic-Speaking Children: The Role of Diglossia",
+      "url": "https://pubs.asha.org/doi/10.1044/2026_LSHSS-25-00264",
+      "note": "Attention à la diglossie arabe standard / arabe parlé"
+    },
+    {
+      "title": "What predicts word reading in Arabic?",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10176086/",
+      "note": "Complexités phonologiques et orthographiques arabes"
+    }
+  ]
+}

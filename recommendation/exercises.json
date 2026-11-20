@@ -1,0 +1,384 @@
+{
+  "project": "AcoDyslex",
+  "version": "0.1.0",
+  "exercises": [
+    {
+      "id": "INV01",
+      "error_type": "inversion",
+      "level": 1,
+      "skill": "auditory_sequencing",
+      "title_fr": "Remettre les segments sonores dans l'ordre",
+      "instruction_ar": "اسمع الكلمة، ثم رتّب المقاطع كما سمعتها.",
+      "modality": "écoute + manipulation",
+      "material": {
+        "spoken_word": "سَمَك",
+        "cards": [
+          "سَ",
+          "مَ",
+          "كْ"
+        ],
+        "expected_order": [
+          "سَ",
+          "مَ",
+          "كْ"
+        ],
+        "unit": "unites graphophonologiques, et non phonemes isoles"
+      },
+      "feedback_fr": "Réécouter puis montrer les segments un à un dans le bon ordre.",
+      "estimated_minutes": 4,
+      "review_status": "prototype_pedagogique_a_valider",
+      "language": "ar",
+      "age_target": "environ 8 ans, à adapter au niveau",
+      "success_criterion_provisional": "Au moins 4 réussites sur 5 essais indépendants, puis vérification sur nouveaux items"
+    },
+    {
+      "id": "INV02",
+      "error_type": "inversion",
+      "level": 1,
+      "skill": "phoneme_order",
+      "title_fr": "Choisir le mot entendu",
+      "instruction_ar": "اسمع جيدًا، ثم اختر الكلمة التي سمعتها.",
+      "modality": "écoute + lecture",
+      "material": {
+        "spoken_word": "سَمَك",
+        "options": [
+          "سَمَك",
+          "مَسَك"
+        ],
+        "answer": "سَمَك"
+      },
+      "feedback_fr": "Faire entendre l'attaque /s/ puis /m/ séparément.",
+      "estimated_minutes": 3,
+      "review_status": "prototype_pedagogique_a_valider",
+      "language": "ar",
+      "age_target": "environ 8 ans, à adapter au niveau",
+      "success_criterion_provisional": "Au moins 4 réussites sur 5 essais indépendants, puis vérification sur nouveaux items"
+    },
+    {
+      "id": "INV03",
+      "error_type": "inversion",
+      "level": 2,
+      "skill": "controlled_decoding",
+      "title_fr": "Lecture guidée de deux ordres",
+      "instruction_ar": "اقرأ كل كلمة ببطء، واحرص على ترتيب الأصوات.",
+      "modality": "lecture orale",
+      "material": {
+        "items": [
+          "سَمَك",
+          "مَسَك"
+        ],
+        "control": "validation humaine ou acoustique robuste"
+      },
+      "feedback_fr": "Revenir à la segmentation si l'ordre est inversé.",
+      "estimated_minutes": 4,
+      "review_status": "prototype_pedagogique_a_valider",
+      "language": "ar",
+      "age_target": "environ 8 ans, à adapter au niveau",
+      "success_criterion_provisional": "Au moins 4 réussites sur 5 essais indépendants, puis vérification sur nouveaux items"
+    },
+    {
+      "id": "OMI01",
+      "error_type": "omission",
+      "level": 1,
+      "skill": "phoneme_detection",
+      "title_fr": "Repérer le phonème manquant",
+      "instruction_ar": "استمع إلى الكلمتين، وحدّد الصوت الذي اختفى.",
+      "modality": "écoute + choix",
+      "material": {
+        "reference": "مَدْرَسَة",
+        "altered": "مَدَسَة",
+        "expected_missing": "ر",
+        "note": "Forme altérée utilisée seulement comme stimulus pédagogique"
+      },
+      "feedback_fr": "Rejouer la séquence autour de /r/ ; éviter de déduire sans audio.",
+      "estimated_minutes": 3,
+      "review_status": "prototype_pedagogique_a_valider",
+      "language": "ar",
+      "age_target": "environ 8 ans, à adapter au niveau",
+      "success_criterion_provisional": "Au moins 4 réussites sur 5 essais indépendants, puis vérification sur nouveaux items"
+    },
+    {
+      "id": "OMI02",
+      "error_type": "omission",
+      "level": 1,
+      "skill": "phoneme_segmentation",
+      "title_fr": "Compter les phonèmes",
+      "instruction_ar": "اسمع الكلمة، وضع علامةً لكل صوت تسمعه.",
+      "modality": "écoute + jetons",
+      "material": {
+        "word": "مِنْ",
+        "phoneme_sequence": [
+          "/m/",
+          "/i/",
+          "/n/"
+        ],
+        "expected_count": 3
+      },
+      "feedback_fr": "Articuler lentement la séquence sans ajouter un son.",
+      "estimated_minutes": 4,
+      "review_status": "prototype_pedagogique_a_valider",
+      "language": "ar",
+      "age_target": "environ 8 ans, à adapter au niveau",
+      "success_criterion_provisional": "Au moins 4 réussites sur 5 essais indépendants, puis vérification sur nouveaux items"
+    },
+    {
+      "id": "OMI03",
+      "error_type": "omission",
+      "level": 2,
+      "skill": "phoneme_grapheme_mapping",
+      "title_fr": "Lecture de mots comportant le son cible",
+      "instruction_ar": "اقرأ الكلمات، وانتبه إلى نطق صوت الراء.",
+      "modality": "lecture orale",
+      "material": {
+        "target_phoneme": "ر",
+        "words": [
+          "دَرَسَ",
+          "دَرْس",
+          "مَدْرَسَة"
+        ]
+      },
+      "feedback_fr": "Aider à localiser le ر dans chaque mot puis relire.",
+      "estimated_minutes": 4,
+      "review_status": "prototype_pedagogique_a_valider",
+      "language": "ar",
+      "age_target": "environ 8 ans, à adapter au niveau",
+      "success_criterion_provisional": "Au moins 4 réussites sur 5 essais indépendants, puis vérification sur nouveaux items"
+    },
+    {
+      "id": "INS01",
+      "error_type": "insertion",
+      "level": 1,
+      "skill": "phoneme_counting",
+      "title_fr": "Un jeton par phonème",
+      "instruction_ar": "اسمع الكلمة، وضع قطعةً واحدةً لكل صوت، دون زيادة.",
+      "modality": "écoute + jetons",
+      "material": {
+        "word": "مَنْ",
+        "phoneme_sequence": [
+          "/m/",
+          "/a/",
+          "/n/"
+        ],
+        "expected_count": 3
+      },
+      "feedback_fr": "Comparer le nombre de phonèmes entendus à celui des jetons.",
+      "estimated_minutes": 4,
+      "review_status": "prototype_pedagogique_a_valider",
+      "language": "ar",
+      "age_target": "environ 8 ans, à adapter au niveau",
+      "success_criterion_provisional": "Au moins 4 réussites sur 5 essais indépendants, puis vérification sur nouveaux items"
+    },
+    {
+      "id": "INS02",
+      "error_type": "insertion",
+      "level": 1,
+      "skill": "controlled_blending",
+      "title_fr": "Fusionner sans répéter",
+      "instruction_ar": "اجمع الأصوات في كلمة واحدة دون تكرار أي صوت.",
+      "modality": "écoute + oral",
+      "material": {
+        "phoneme_sequence": [
+          "/m/",
+          "/a/",
+          "/n/"
+        ],
+        "expected_word": "مَنْ"
+      },
+      "feedback_fr": "Modéliser une seule occurrence de chaque phonème.",
+      "estimated_minutes": 3,
+      "review_status": "prototype_pedagogique_a_valider",
+      "language": "ar",
+      "age_target": "environ 8 ans, à adapter au niveau",
+      "success_criterion_provisional": "Au moins 4 réussites sur 5 essais indépendants, puis vérification sur nouveaux items"
+    },
+    {
+      "id": "INS03",
+      "error_type": "insertion",
+      "level": 2,
+      "skill": "phoneme_segmentation",
+      "title_fr": "Détecter le son supplémentaire",
+      "instruction_ar": "استمع وقارن، ثم أشِرْ إلى الصوت الزائد.",
+      "modality": "écoute + comparaison",
+      "material": {
+        "target": "سَمَك",
+        "altered_pseudoword": "سَمَكَك",
+        "added_sound": "كَ",
+        "note": "Pseudo-mot créé pour l'exercice avec ajout d’un segment /a k/, présenté explicitement comme tel"
+      },
+      "feedback_fr": "Faire comparer les deux chaînes lentement.",
+      "estimated_minutes": 4,
+      "review_status": "prototype_pedagogique_a_valider",
+      "language": "ar",
+      "age_target": "environ 8 ans, à adapter au niveau",
+      "success_criterion_provisional": "Au moins 4 réussites sur 5 essais indépendants, puis vérification sur nouveaux items"
+    },
+    {
+      "id": "SUB01",
+      "error_type": "consonant_substitution",
+      "level": 1,
+      "skill": "auditory_discrimination",
+      "title_fr": "Distinguer deux consonnes",
+      "instruction_ar": "اسمع، ثم اختر: سَ أم صَ؟",
+      "modality": "écoute + choix",
+      "material": {
+        "contrasts": [
+          "سَ",
+          "صَ"
+        ],
+        "target_phonemes": [
+          "/s/",
+          "/sˤ/"
+        ]
+      },
+      "feedback_fr": "Faire réentendre la paire sans jugement de prononciation dialectale.",
+      "estimated_minutes": 3,
+      "review_status": "prototype_pedagogique_a_valider",
+      "language": "ar",
+      "age_target": "environ 8 ans, à adapter au niveau",
+      "success_criterion_provisional": "Au moins 4 réussites sur 5 essais indépendants, puis vérification sur nouveaux items"
+    },
+    {
+      "id": "SUB02",
+      "error_type": "consonant_substitution",
+      "level": 1,
+      "skill": "phoneme_grapheme_mapping",
+      "title_fr": "Associer son et graphème",
+      "instruction_ar": "اسمع الصوت ثم اختر الحرف الصحيح.",
+      "modality": "écoute + graphèmes",
+      "material": {
+        "audio_target": "/s/",
+        "options": [
+          "س",
+          "ص"
+        ],
+        "answer": "س"
+      },
+      "feedback_fr": "Montrer la correspondance entre le phonème et le graphème.",
+      "estimated_minutes": 3,
+      "review_status": "prototype_pedagogique_a_valider",
+      "language": "ar",
+      "age_target": "environ 8 ans, à adapter au niveau",
+      "success_criterion_provisional": "Au moins 4 réussites sur 5 essais indépendants, puis vérification sur nouveaux items"
+    },
+    {
+      "id": "SUB03",
+      "error_type": "consonant_substitution",
+      "level": 2,
+      "skill": "contrastive_decoding",
+      "title_fr": "Lire une paire minimale",
+      "instruction_ar": "اقرأ الكلمتين، ولاحظ الفرق بين الحرفين.",
+      "modality": "lecture orale",
+      "material": {
+        "word_pair": [
+          "سَارَ",
+          "صَارَ"
+        ],
+        "contrast": "س / ص"
+      },
+      "feedback_fr": "Travailler d'abord les lettres isolées si nécessaire.",
+      "estimated_minutes": 4,
+      "review_status": "prototype_pedagogique_a_valider",
+      "language": "ar",
+      "age_target": "environ 8 ans, à adapter au niveau",
+      "success_criterion_provisional": "Au moins 4 réussites sur 5 essais indépendants, puis vérification sur nouveaux items"
+    },
+    {
+      "id": "SV01",
+      "error_type": "short_vowel_confusion",
+      "level": 1,
+      "skill": "short_vowel_discrimination",
+      "title_fr": "Écouter la voyelle brève",
+      "instruction_ar": "استمع ثم اختر المقطع الصحيح: بَ أو بِ أو بُ.",
+      "modality": "écoute + choix",
+      "material": {
+        "options": [
+          "بَ",
+          "بِ",
+          "بُ"
+        ],
+        "audio_target": "بِ",
+        "answer": "بِ"
+      },
+      "feedback_fr": "Rejouer uniquement les voyelles contrastées.",
+      "estimated_minutes": 3,
+      "review_status": "prototype_pedagogique_a_valider",
+      "language": "ar",
+      "age_target": "environ 8 ans, à adapter au niveau",
+      "success_criterion_provisional": "Au moins 4 réussites sur 5 essais indépendants, puis vérification sur nouveaux items"
+    },
+    {
+      "id": "SV02",
+      "error_type": "short_vowel_confusion",
+      "level": 2,
+      "skill": "diacritic_grapheme_mapping",
+      "title_fr": "Lire les syllabes vocalisées",
+      "instruction_ar": "اقرأ: بَ، بِ، بُ، ثم صِل كل صوت بشكله المكتوب.",
+      "modality": "lecture + association",
+      "material": {
+        "syllables": [
+          "بَ",
+          "بِ",
+          "بُ"
+        ],
+        "diacritics": [
+          "fatha",
+          "kasra",
+          "damma"
+        ]
+      },
+      "feedback_fr": "Ne pas appliquer à une cible écrite sans signes diacritiques.",
+      "estimated_minutes": 3,
+      "review_status": "prototype_pedagogique_a_valider",
+      "language": "ar",
+      "age_target": "environ 8 ans, à adapter au niveau",
+      "success_criterion_provisional": "Au moins 4 réussites sur 5 essais indépendants, puis vérification sur nouveaux items"
+    },
+    {
+      "id": "LV01",
+      "error_type": "long_vowel_confusion",
+      "level": 1,
+      "skill": "vowel_length_discrimination",
+      "title_fr": "Écouter court et long",
+      "instruction_ar": "استمع إلى بَ وبَا، وحدّد الصوت القصير والصوت الطويل.",
+      "modality": "écoute + comparaison",
+      "material": {
+        "contrasts": [
+          "بَ",
+          "بَا"
+        ],
+        "target_phonemes": [
+          "/a/",
+          "/aː/"
+        ]
+      },
+      "feedback_fr": "Entraîner seulement si l'écart persiste ou change le mot.",
+      "estimated_minutes": 3,
+      "review_status": "prototype_pedagogique_a_valider",
+      "language": "ar",
+      "age_target": "environ 8 ans, à adapter au niveau",
+      "success_criterion_provisional": "Au moins 4 réussites sur 5 essais indépendants, puis vérification sur nouveaux items"
+    },
+    {
+      "id": "LV02",
+      "error_type": "long_vowel_confusion",
+      "level": 2,
+      "skill": "contextual_word_reading",
+      "title_fr": "Lire deux mots dont la longueur change le sens",
+      "instruction_ar": "اقرأ الكلمتين ولاحظ الفرق: كَتَبَ، كَاتَبَ.",
+      "modality": "lecture + vocabulaire",
+      "material": {
+        "word_pair": [
+          "كَتَبَ",
+          "كَاتَبَ"
+        ],
+        "note": "Contraste morphologique : prévoir un accompagnement lexical adapté à l'âge"
+      },
+      "feedback_fr": "Expliquer le sens et le statut des deux formes ; ne pas surcorriger une durée isolée.",
+      "estimated_minutes": 4,
+      "review_status": "prototype_pedagogique_a_valider",
+      "language": "ar",
+      "age_target": "environ 8 ans, à adapter au niveau",
+      "success_criterion_provisional": "Au moins 4 réussites sur 5 essais indépendants, puis vérification sur nouveaux items"
+    }
+  ]
+}
