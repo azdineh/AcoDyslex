@@ -15,9 +15,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY --chown=app:app . ./
 RUN mkdir -p /data && chown app:app /data
 
-USER app
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint
+RUN chmod 755 /usr/local/bin/docker-entrypoint
 
 EXPOSE 8000
 
-# Railway injects PORT at runtime. A shell is required to expand it.
-CMD ["/bin/sh", "-c", "exec uvicorn app:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# The entrypoint temporarily runs as root only to grant the mounted Railway
+# volume to the unprivileged application user, then starts Uvicorn as `app`.
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint"]
