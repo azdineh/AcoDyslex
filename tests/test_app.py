@@ -40,6 +40,10 @@ class PrototypeTests(unittest.TestCase):
         return self.client.post('/api/recordings',data={'learner_code':learner,'target_text':'سمكة','local_consent':str(consent).lower()}, files={'file':('reading.wav',wav or sample_wav(),'audio/wav')})
     def test_home(self):
         self.assertEqual(self.client.get('/').status_code,200)
+    def test_healthcheck(self):
+        response = self.client.get('/health')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'status': 'ok'})
     def test_no_consent(self):
         self.assertEqual(self.save(consent=False).status_code,403)
     def test_invalid_code(self):

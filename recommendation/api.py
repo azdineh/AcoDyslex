@@ -29,13 +29,17 @@ VerificationStatus = Literal["human_verified", "automated_unverified"]
 _ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 _RECEIPT_RE = re.compile(r"^[a-f0-9]{32}\.[a-f0-9]{64}$")
 RECEIPT_TTL_SECONDS = 15 * 60
+STORAGE_DIR = Path(os.getenv(
+    "ACODYSLEX_STORAGE_DIR",
+    Path(__file__).resolve().parents[1] / "recordings",
+))
 REVIEW_DB_PATH = Path(os.getenv(
     "ACODYSLEX_REVIEW_DB",
-    Path(__file__).resolve().parents[1] / "recordings" / ".recommendation-reviews.sqlite3",
+    STORAGE_DIR / ".recommendation-reviews.sqlite3",
 ))
 REVIEW_KEY_PATH = Path(os.getenv(
     "ACODYSLEX_REVIEW_KEY_FILE",
-    Path(__file__).resolve().parents[1] / "recordings" / ".recommendation-review-key",
+    STORAGE_DIR / ".recommendation-review-key",
 ))
 
 

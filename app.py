@@ -45,7 +45,10 @@ from learning_guide import build_learning_guide
 from pydantic import ValidationError
 
 ROOT = Path(__file__).resolve().parent
-STORAGE = ROOT / "recordings"
+# Railway mounts persistent disks outside the application image.  Keeping this
+# configurable also makes local tests and local development retain their
+# existing `recordings/` default.
+STORAGE = Path(os.getenv("ACODYSLEX_STORAGE_DIR", ROOT / "recordings"))
 STORAGE.mkdir(parents=True, exist_ok=True)
 MAX_WAV_BYTES = 1_000_000
 MAX_AUDIO_SECONDS = 20.0
@@ -255,6 +258,12 @@ def wav_quality(data: bytes) -> dict:
 @app.get("/")
 def homepage():
     return FileResponse(ROOT / "static" / "index.html")
+
+
+@app.get("/health")
+def healthcheck():
+    """Small, dependency-free readiness endpoint for Railway deployments."""
+    return {"status": "ok"}
 
 
 @app.get("/api/config")

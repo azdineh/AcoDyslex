@@ -1,0 +1,15 @@
+.git
+.venv
+__pycache__
+.pytest_cache
+.codex-backups
+node_modules
+test-results
+playwright-report
+artifacts
+tmp
+output
+recordings
+.env
+.acodyslex-model-info.json
+*.pyc
